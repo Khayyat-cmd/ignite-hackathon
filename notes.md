@@ -1,7 +1,27 @@
-Unity Simulation Integration:
-    -THE SIMPLE WAY:We export the Unity simulation as a WebGL build and embed it in the React/Next.js website using iframe. Users can interact with it directly in the browser.
-    -THE LESS SIMPLE WAY:We export the Unity simulation as a WebGL build and load its build files directly inside a React component using a library such as react-unity-webgl, which gives more control for user.
+# AMAN architecture
 
-Backend:
-    -Process Information and Make Decisions: The backend receives information from CAMARA APIs,sends them to simulation and frontend, evaluates crowd risk, selects a suitable reachable responder, and manages the incident from detection to resolution.
-    -Connect and Update the System: The backend connects the web command center, Unity simulation, and responder interface, sends live updates to each one, and records all decisions and actions
+## System flow
+
+1. The backend receives Nokia network information and crowd readings for each zone.
+2. It calculates crowd density, compares it with configured venue thresholds and creates an incident when risk is detected.
+3. It recommends an authorized, available and reachable responder. An operator reviews and approves the response.
+4. The backend broadcasts updates to the command-center website and Unity simulation and records the incident until resolution.
+
+Device counts are estimates, not exact people counts. Safety thresholds must be approved for the real venue.
+
+## Website and simulation
+
+Unity exports the interactive simulation as a WebGL build. It can be integrated in either of these ways:
+
+- **Iframe:** host the Unity WebGL build and embed its `index.html` in the website. This is the simplest option.
+- **React component:** load the Unity WebGL build through a React integration library. This gives the website more direct control.
+
+In both options, the website receives live backend events and passes them to Unity. The same event contract is used, so the embedding option can be chosen later.
+
+## Data sources
+
+- **Nokia Network as Code:** official simulated Location Retrieval, Location Verification, Device Reachability and Congestion Insights responses.
+- **Orange Population Density Data:** official playground with mocked population-density estimates.
+- **Crowd-count stream:** controlled simulated readings until a public Region Device Count implementation becomes available.
+
+The backend keeps provider-specific code separate so a simulator can later be replaced with an approved live provider without changing the website or Unity event contract.

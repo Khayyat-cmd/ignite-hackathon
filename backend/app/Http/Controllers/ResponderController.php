@@ -1,0 +1,50 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Http\Requests\CreateResponderRequest;
+use App\Jobs\RefreshResponder;
+use App\Models\Responder;
+use App\Services\ResponderSignals;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+
+class ResponderController extends Controller
+{
+    public function index(): LengthAwarePaginator
+    {
+        return Responder::orderBy('id')->paginate(50);
+    }
+
+    public function store(CreateResponderRequest $request): JsonResponse
+    {
+        return response()->json(Responder::create($request->validated()), 201);
+    }
+
+    public function refresh(Request $request, Responder $responder): JsonResponse
+    {
+        abort_unless($responder->authorized, 403, 'Device authorization is required.');
+        abort_unless(in_array(config('camara.mode'), ['sandbox', 'live'], true) && filled(config('camara.api_key')), 503, 'Nokia credentials and mode must be configured first.');
+        RefreshResponder::dispatch($responder->id, $request->user()->id);
+
+        return response()->json(['status' => 'queued', 'responderId' => $responder->id], 202);
+    }
+
+    public function demoSignals(Request $request, Responder $responder, ResponderSignals $service): Responder
+    {
+        abort_unless(config('aman.demo_enabled') && ! app()->environment('production'), 403, 'Demo mode is disabled.');
+        $data = $request->validate([
+            'latitude' => 'required|numeric|between:-90,90', 'longitude' => 'required|numeric|between:-180,180',
+            'accuracyMeters' => 'required|numeric|between:0,100000', 'dataReachable' => 'required|boolean',
+            'source' => 'prohibited',
+        ]);
+        $now = now()->toISOString();
+
+        return $service->store($responder, [
+            'source' => 'demo', 'checkedAt' => $now,
+            'location' => ['latitude' => (float) $data['latitude'], 'longitude' => (float) $data['longitude'], 'accuracyMeters' => (float) $data['accuracyMeters'], 'observedAt' => $now],
+            'reachability' => ['reachable' => (bool) $data['dataReachable'], 'dataReachable' => (bool) $data['dataReachable'], 'connectivity' => $data['dataReachable'] ? ['DATA'] : [], 'observedAt' => $now],
+        ], $request->user()->id);
+    }
+}
