@@ -20,24 +20,31 @@ final class IncidentWorkflow
             $incident = Incident::whereKey($incident->id)->lockForUpdate()->firstOrFail();
             abort_unless(in_array($incident->status, [IncidentStatus::Detected, IncidentStatus::AwaitingApproval], true), 409, 'Incident is not awaiting a recommendation.');
             $zone = Zone::findOrFail($incident->zone_id);
+            $hybrid = $this->isStadiumDemo($incident, $zone);
             $this->requireFreshZone($zone);
             $candidates = [];
             $excluded = [];
             $responders = Responder::orderBy('id')->limit(config('aman.max_candidates') + 1)->get();
             abort_if($responders->count() > config('aman.max_candidates'), 422, 'Roster exceeds the prototype candidate limit; scope the roster before ranking.');
             foreach ($responders as $responder) {
-                $reason = $this->ineligibleReason($responder, $incident);
+                $reason = $this->ineligibleReason($responder, $incident, $hybrid);
                 if ($reason !== null) {
                     $excluded[] = ['responderId' => $responder->id, 'reason' => $reason];
 
                     continue;
                 }
-                $location = $responder->signals['location'];
-                $candidates[] = ['responderId' => $responder->id, 'distanceMeters' => round($this->distance($zone->latitude, $zone->longitude, $location['latitude'], $location['longitude']), 1), 'accuracyMeters' => $location['accuracyMeters']];
+                $location = $hybrid ? $responder->demo_position : $responder->signals['location'];
+                $candidates[] = [
+                    'responderId' => $responder->id,
+                    'distanceMeters' => round($this->distance($zone->latitude, $zone->longitude, $location['latitude'], $location['longitude']), 1),
+                    'accuracyMeters' => $hybrid ? null : $location['accuracyMeters'],
+                    'locationSource' => $hybrid ? 'simulated_stadium_position' : $responder->signals['source'],
+                    'reachabilitySource' => $responder->signals['source'],
+                ];
             }
             usort($candidates, fn ($a, $b) => ($a['distanceMeters'] <=> $b['distanceMeters']) ?: strcmp($a['responderId'], $b['responderId']));
             $selected = $candidates[0] ?? null;
-            $decision = ['method' => 'deterministic_policy_v1', 'source' => $incident->source, 'candidates' => $candidates, 'excluded' => $excluded, 'requiresRouteReview' => true, 'reason' => $selected ? 'nearest_eligible_reachable_candidate_by_approximate_location' : 'no_eligible_responder'];
+            $decision = ['method' => $hybrid ? 'stadium_demo_simulated_distance_nokia_reachability' : 'deterministic_policy_v1', 'source' => $incident->source, 'candidates' => $candidates, 'excluded' => $excluded, 'requiresRouteReview' => true, 'reason' => $selected ? ($hybrid ? 'nearest_simulated_position_with_nokia_sandbox_reachability' : 'nearest_eligible_reachable_candidate_by_approximate_location') : 'no_eligible_responder'];
             $incident->update(['responder_id' => $selected['responderId'] ?? null, 'decision' => $decision, 'status' => $selected ? IncidentStatus::AwaitingApproval : IncidentStatus::Detected]);
             if ($selected) {
                 $this->journal->append(EventType::ResponderSelected, ['responderId' => $selected['responderId'], 'decision' => $decision], $zone->id, $incident->id, $actorId);
@@ -55,9 +62,10 @@ final class IncidentWorkflow
                 return $incident;
             }
             abort_unless($incident->status === IncidentStatus::AwaitingApproval && $incident->responder_id, 409, 'A recommendation is required before approval.');
-            $this->requireFreshZone(Zone::findOrFail($incident->zone_id));
+            $zone = Zone::findOrFail($incident->zone_id);
+            $this->requireFreshZone($zone);
             $responder = Responder::whereKey($incident->responder_id)->lockForUpdate()->firstOrFail();
-            $reason = $this->ineligibleReason($responder, $incident);
+            $reason = $this->ineligibleReason($responder, $incident, $this->isStadiumDemo($incident, $zone));
             abort_if($reason !== null, 409, 'Recommendation is no longer valid: '.$reason);
             $responder->update(['available' => false]);
             $incident->update(['assigned_responder_id' => $responder->id, 'status' => IncidentStatus::Dispatched, 'approved_at' => now()]);
@@ -103,7 +111,7 @@ final class IncidentWorkflow
         }, attempts: 3);
     }
 
-    private function ineligibleReason(Responder $responder, Incident $incident): ?string
+    private function ineligibleReason(Responder $responder, Incident $incident, bool $hybrid): ?string
     {
         if (! $responder->authorized) {
             return 'device_not_authorized';
@@ -115,7 +123,18 @@ final class IncidentWorkflow
             return 'role_mismatch';
         }
         $signals = $responder->signals ?? [];
-        if (($signals['source'] ?? null) !== $incident->source) {
+        if ($hybrid) {
+            if (($signals['source'] ?? null) !== 'nokia_sandbox') {
+                return 'nokia_sandbox_evidence_required';
+            }
+            $position = $responder->demo_position;
+            if (($position['source'] ?? null) !== 'simulated_stadium_position'
+                || ($position['venueId'] ?? null) !== StadiumDemo::VENUE
+                || ! is_numeric($position['latitude'] ?? null) || ! is_numeric($position['longitude'] ?? null)
+                || ! str_starts_with($responder->demo_key ?? '', StadiumDemo::VENUE.':')) {
+                return 'stadium_position_missing';
+            }
+        } elseif (($signals['source'] ?? null) !== $incident->source) {
             return 'evidence_source_mismatch';
         }
         if (! data_get($signals, 'reachability.dataReachable')) {
@@ -123,6 +142,9 @@ final class IncidentWorkflow
         }
         if (! $this->fresh(data_get($signals, 'reachability.observedAt'))) {
             return 'reachability_stale_or_unknown';
+        }
+        if ($hybrid) {
+            return null;
         }
         if (! $this->fresh(data_get($signals, 'location.observedAt'))) {
             return 'location_stale_or_unknown';
@@ -132,6 +154,13 @@ final class IncidentWorkflow
         }
 
         return null;
+    }
+
+    private function isStadiumDemo(Incident $incident, Zone $zone): bool
+    {
+        return config('aman.demo_enabled') && ! app()->environment('production')
+            && config('camara.mode') === 'sandbox' && $incident->source === 'demo'
+            && str_starts_with($zone->demo_key ?? '', StadiumDemo::VENUE.':');
     }
 
     private function requireFreshZone(Zone $zone): void

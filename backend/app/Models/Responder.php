@@ -15,6 +15,6 @@ class Responder extends Model
 
     protected function casts(): array
     {
-        return ['phone_number' => 'encrypted', 'authorized' => 'boolean', 'available' => 'boolean', 'signals' => 'array'];
+        return ['phone_number' => 'encrypted', 'authorized' => 'boolean', 'available' => 'boolean', 'signals' => 'array', 'demo_position' => 'array'];
     }
 }

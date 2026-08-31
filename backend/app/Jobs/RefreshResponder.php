@@ -14,11 +14,11 @@ class RefreshResponder implements ShouldBeUnique, ShouldQueue
 
     public int $tries = 1;
 
-    public int $timeout = 60;
+    public int $timeout = 75;
 
     public int $uniqueFor = 120;
 
-    public function __construct(public string $responderId, public int $actorId) {}
+    public function __construct(public string $responderId, public ?int $actorId) {}
 
     public function uniqueId(): string
     {

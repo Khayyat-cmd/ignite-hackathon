@@ -11,4 +11,5 @@ enum EventType: string
     case ResponseAcknowledged = 'response_acknowledged';
     case IncidentResolved = 'incident_resolved';
     case ResponderUpdated = 'responder_updated';
+    case PopulationUpdated = 'population_updated';
 }

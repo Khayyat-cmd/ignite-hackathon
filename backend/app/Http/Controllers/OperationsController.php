@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\IncidentStatus;
 use App\Http\Requests\CreateZoneRequest;
 use App\Http\Requests\CrowdObservationRequest;
 use App\Models\DomainEvent;
@@ -44,7 +45,13 @@ class OperationsController extends Controller
 
     public function incidents(): LengthAwarePaginator
     {
-        return Incident::orderByDesc('created_at')->orderBy('id')->paginate(50);
+        return Incident::orderByDesc('created_at')->orderBy('id')->paginate(50)->through(function (Incident $incident) {
+            $data = $incident->toArray();
+            $data['acknowledgementOverdue'] = $incident->status === IncidentStatus::Dispatched
+                && $incident->approved_at?->lt(now()->subSeconds(60));
+
+            return $data;
+        });
     }
 
     public function integrations(): array

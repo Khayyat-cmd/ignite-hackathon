@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\EventType;
 use App\Exceptions\IntegrationUnavailable;
 use App\Models\Responder;
+use App\Models\Zone;
 use App\Services\Camara\NokiaNetwork;
 use Illuminate\Support\Facades\DB;
 
@@ -23,6 +24,16 @@ final class ResponderSignals
                 // Unknown is not unreachable or safe; never retain old successful evidence as fresh.
                 $signals[$operation] = null;
                 $signals['errors'][$operation] = $e->reason;
+            }
+        }
+        $zone = $responder->demo_position ? Zone::find($responder->demo_position['zoneId'] ?? '') : null;
+        if ($zone && config('aman.demo_enabled') && ! app()->environment('production') && config('camara.mode') === 'sandbox') {
+            $signals['verificationArea'] = ['latitude' => $zone->latitude, 'longitude' => $zone->longitude, 'radiusMeters' => 1500, 'basis' => 'broad_demo_venue_area_not_zone_membership'];
+            try {
+                $signals['verification'] = $this->network->verify($responder->phone_number, $zone->latitude, $zone->longitude, 1500);
+            } catch (IntegrationUnavailable $e) {
+                $signals['verification'] = null;
+                $signals['errors']['verification'] = $e->reason;
             }
         }
 

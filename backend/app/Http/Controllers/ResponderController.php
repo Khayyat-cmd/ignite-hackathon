@@ -6,6 +6,7 @@ use App\Http\Requests\CreateResponderRequest;
 use App\Jobs\RefreshResponder;
 use App\Models\Responder;
 use App\Services\ResponderSignals;
+use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -14,7 +15,16 @@ class ResponderController extends Controller
 {
     public function index(): LengthAwarePaginator
     {
-        return Responder::orderBy('id')->paginate(50);
+        return Responder::orderBy('id')->paginate(50)->through(function (Responder $responder) {
+            $data = $responder->toArray();
+            $checkedAt = data_get($responder->signals, 'checkedAt');
+            $data['networkFreshness'] = ! $checkedAt ? 'missing' : (CarbonImmutable::parse($checkedAt)->lt(now()->subSeconds(config('aman.signal_max_age_seconds'))) ? 'stale' : 'fresh');
+            $data['networkWarning'] = collect(data_get($responder->signals, 'congestion', []))->contains('congestionLevel', 'High')
+                ? 'Network congestion reported; monitor acknowledgement. This does not prove delivery failure.'
+                : null;
+
+            return $data;
+        });
     }
 
     public function store(CreateResponderRequest $request): JsonResponse

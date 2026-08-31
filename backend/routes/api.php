@@ -1,6 +1,8 @@
 <?php
 
+use App\Http\Controllers\DemoController;
 use App\Http\Controllers\IncidentController;
+use App\Http\Controllers\MissionController;
 use App\Http\Controllers\OperationsController;
 use App\Http\Controllers\ResponderController;
 use Illuminate\Support\Facades\Broadcast;
@@ -18,6 +20,10 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle:api'])->group(functio
         Route::get('integrations', [OperationsController::class, 'integrations']);
     });
     Route::middleware('ability:operate')->group(function () {
+        Route::post('demo/setup', [DemoController::class, 'setup']);
+        Route::post('demo/zones/{zone}/scenario', [DemoController::class, 'scenario']);
+        Route::post('demo/network/refresh', [DemoController::class, 'refresh'])->middleware('throttle:network');
+        Route::post('demo/zones/{zone}/population/refresh', [DemoController::class, 'population'])->middleware('throttle:network');
         Route::post('zones', [OperationsController::class, 'createZone']);
         Route::post('responders', [ResponderController::class, 'store']);
         Route::post('responders/{responder}/refresh', [ResponderController::class, 'refresh'])->middleware('throttle:network');
@@ -25,6 +31,10 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle:api'])->group(functio
         Route::post('incidents/{incident}/approve', [IncidentController::class, 'approve']);
         Route::post('incidents/{incident}/acknowledge', [IncidentController::class, 'acknowledge']);
         Route::post('incidents/{incident}/resolve', [IncidentController::class, 'resolve']);
+    });
+    Route::middleware('ability:respond')->group(function () {
+        Route::get('missions', [MissionController::class, 'index']);
+        Route::post('missions/{incident}/acknowledge', [MissionController::class, 'acknowledge']);
     });
     Route::middleware('ability:ingest')->group(function () {
         Route::post('demo/zones/{zone}/observations', [OperationsController::class, 'observe']);
