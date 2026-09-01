@@ -2,16 +2,17 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToOrganization;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 
 class Zone extends Model
 {
-    use HasUuids;
+    use BelongsToOrganization, HasUuids;
 
     protected $dateFormat = 'Y-m-d H:i:s.u';
 
-    protected $fillable = ['name', 'area_sqm', 'warning_density', 'critical_density', 'people_per_device', 'calibration_note', 'latitude', 'longitude'];
+    protected $fillable = ['organization_id', 'venue_event_id', 'name', 'area_sqm', 'warning_density', 'critical_density', 'people_per_device', 'calibration_note', 'latitude', 'longitude'];
 
     protected function casts(): array
     {

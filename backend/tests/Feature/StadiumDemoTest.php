@@ -106,7 +106,7 @@ class StadiumDemoTest extends TestCase
             ->assertJsonPath('decision.candidates.0.locationSource', 'simulated_stadium_position')
             ->assertJsonPath('decision.candidates.0.reachabilitySource', 'nokia_sandbox');
         $this->postJson($base.'/approve', ['routeReviewed' => true])->assertOk();
-        $account = User::factory()->create();
+        $account = User::factory()->create(['organization_id' => $responder->organization_id]);
         $account->forceFill(['responder_id' => $responder->id])->save();
         Sanctum::actingAs($account, ['respond']);
         $this->getJson('/api/v1/missions')->assertOk()->assertJsonPath('data.0.destination.zoneId', $zone->id);
@@ -169,7 +169,7 @@ class StadiumDemoTest extends TestCase
         $incident = $this->trigger($zone);
         $this->postJson('/api/v1/incidents/'.$incident->id.'/recommend')->assertOk();
         $this->postJson('/api/v1/incidents/'.$incident->id.'/approve', ['routeReviewed' => true])->assertOk();
-        $other = User::factory()->create();
+        $other = User::factory()->create(['organization_id' => $responder->organization_id]);
         $other->forceFill(['responder_id' => Responder::where('id', '!=', $responder->id)->first()->id])->save();
         Sanctum::actingAs($other, ['respond']);
         $this->getJson('/api/v1/missions')->assertOk()->assertJsonCount(0, 'data');

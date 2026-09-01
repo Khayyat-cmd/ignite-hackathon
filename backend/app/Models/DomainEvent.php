@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToOrganization;
 use Illuminate\Database\Eloquent\Model;
 
 class DomainEvent extends Model
 {
+    use BelongsToOrganization;
+
     public $timestamps = false;
 
     protected $dateFormat = 'Y-m-d H:i:s.u';

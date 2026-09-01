@@ -15,9 +15,9 @@ use Illuminate\Http\Request;
 
 class OperationsController extends Controller
 {
-    public function zones(): LengthAwarePaginator
+    public function zones(Request $request): LengthAwarePaginator
     {
-        return Zone::orderBy('id')->paginate(50)->through(function (Zone $zone) {
+        return Zone::where('organization_id', $request->user()->organization_id)->orderBy('id')->paginate(50)->through(function (Zone $zone) {
             $data = $zone->toArray();
             $data['dataFreshness'] = ! $zone->last_observed_at ? 'missing' : ($zone->last_observed_at->lt(now()->subSeconds(config('aman.observation_max_age_seconds'))) ? 'stale' : 'fresh');
 
@@ -27,25 +27,28 @@ class OperationsController extends Controller
 
     public function createZone(CreateZoneRequest $request): JsonResponse
     {
-        return response()->json(Zone::create($request->validated()), 201);
+        return response()->json(Zone::create([...$request->validated(), 'organization_id' => $request->user()->organization_id]), 201);
     }
 
     public function observe(CrowdObservationRequest $request, Zone $zone, CrowdMonitor $monitor): JsonResponse
     {
+        abort_unless($zone->organization_id === $request->user()->organization_id, 404);
+
         return response()->json($monitor->ingest($zone, $request->validated(), 'demo', $request->user()->id));
     }
 
     public function events(Request $request): array
     {
         $input = $request->validate(['after' => 'sometimes|integer|min:0|max:9223372036854775806', 'limit' => 'sometimes|integer|between:1,200']);
-        $events = DomainEvent::where('id', '>', $input['after'] ?? 0)->orderBy('id')->limit($input['limit'] ?? 100)->get();
+        $query = DomainEvent::where('organization_id', $request->user()->organization_id);
+        $events = (clone $query)->where('id', '>', $input['after'] ?? 0)->orderBy('id')->limit($input['limit'] ?? 100)->get();
 
-        return ['data' => $events->map->envelope(), 'nextCursor' => (string) ($events->last()?->id ?? ($input['after'] ?? 0)), 'hasMore' => $events->isNotEmpty() && DomainEvent::where('id', '>', $events->last()->id)->exists()];
+        return ['data' => $events->map->envelope(), 'nextCursor' => (string) ($events->last()?->id ?? ($input['after'] ?? 0)), 'hasMore' => $events->isNotEmpty() && (clone $query)->where('id', '>', $events->last()->id)->exists()];
     }
 
-    public function incidents(): LengthAwarePaginator
+    public function incidents(Request $request): LengthAwarePaginator
     {
-        return Incident::orderByDesc('created_at')->orderBy('id')->paginate(50)->through(function (Incident $incident) {
+        return Incident::where('organization_id', $request->user()->organization_id)->orderByDesc('created_at')->orderBy('id')->paginate(50)->through(function (Incident $incident) {
             $data = $incident->toArray();
             $data['acknowledgementOverdue'] = $incident->status === IncidentStatus::Dispatched
                 && $incident->approved_at?->lt(now()->subSeconds(60));

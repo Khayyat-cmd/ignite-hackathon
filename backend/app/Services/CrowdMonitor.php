@@ -58,7 +58,7 @@ final class CrowdMonitor
                 $event = $this->journal->append(EventType::DensityUpdated, $reading, $zone->id, actorId: $actorId);
 
                 if ($risk === 'critical' && ! Incident::where('active_zone_id', $zone->id)->exists()) {
-                    $incident = Incident::create(['zone_id' => $zone->id, 'active_zone_id' => $zone->id, 'source' => $source, 'status' => IncidentStatus::Detected]);
+                    $incident = Incident::create(['organization_id' => $zone->organization_id, 'venue_event_id' => $zone->venue_event_id, 'zone_id' => $zone->id, 'active_zone_id' => $zone->id, 'source' => $source, 'status' => IncidentStatus::Detected]);
                     $this->journal->append(EventType::DangerDetected, ['source' => $source, 'reason' => 'configured_density_threshold_breached', 'requiresHumanReview' => true, 'reading' => $reading], $zone->id, $incident->id, $actorId);
                 }
 

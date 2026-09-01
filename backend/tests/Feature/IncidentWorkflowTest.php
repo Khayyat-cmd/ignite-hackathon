@@ -122,8 +122,10 @@ class IncidentWorkflowTest extends TestCase
     public function test_broadcast_channel_authorization_requires_read_permission(): void
     {
         config(['broadcasting.default' => 'reverb', 'broadcasting.connections.reverb.key' => 'test', 'broadcasting.connections.reverb.secret' => 'test-secret', 'broadcasting.connections.reverb.app_id' => 'test']);
-        $this->postJson('/api/broadcasting/auth', ['socket_id' => '1.2', 'channel_name' => 'private-operations'])->assertOk()->assertJsonStructure(['auth']);
+        $channel = 'private-operations.'.$this->operator->organization_id;
+        $this->postJson('/api/broadcasting/auth', ['socket_id' => '1.2', 'channel_name' => $channel])->assertOk()->assertJsonStructure(['auth']);
+        $this->postJson('/api/broadcasting/auth', ['socket_id' => '1.2', 'channel_name' => 'private-operations.999999'])->assertForbidden();
         Sanctum::actingAs($this->operator, ['ingest']);
-        $this->postJson('/api/broadcasting/auth', ['socket_id' => '1.2', 'channel_name' => 'private-operations'])->assertForbidden();
+        $this->postJson('/api/broadcasting/auth', ['socket_id' => '1.2', 'channel_name' => $channel])->assertForbidden();
     }
 }

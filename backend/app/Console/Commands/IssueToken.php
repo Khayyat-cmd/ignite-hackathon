@@ -29,7 +29,8 @@ class IssueToken extends Command
             return self::FAILURE;
         }
         $responderId = $this->option('responder');
-        if (in_array('respond', $abilities, true) && (! $responderId || $abilities !== ['respond'] || ! Responder::whereKey($responderId)->where('authorized', true)->exists())) {
+        $responder = $responderId ? Responder::whereKey($responderId)->where('authorized', true)->first() : null;
+        if (in_array('respond', $abilities, true) && (! $responder || $abilities !== ['respond'])) {
             $this->error('Responder tokens require --abilities=respond and --responder=<authorized responder UUID>.');
 
             return self::FAILURE;
@@ -40,7 +41,7 @@ class IssueToken extends Command
             return self::FAILURE;
         }
         $existing = User::where('email', $email)->first();
-        if ($responderId && (($existing && $existing->responder_id !== $responderId)
+        if ($responderId && (($existing && ($existing->responder_id !== $responderId || $existing->organization_id !== $responder->organization_id))
             || User::where('responder_id', $responderId)->where('email', '!=', $email)->exists())) {
             $this->error('Use a new dedicated email; existing accounts cannot be rebound.');
 
@@ -51,7 +52,19 @@ class IssueToken extends Command
 
             return self::FAILURE;
         }
-        $user = User::firstOrCreate(['email' => $email], ['name' => $email, 'password' => Str::random(64)]);
+        if (! $existing && ! $responder) {
+            $this->error('Create the organization account through registration or invitation before issuing a development token.');
+
+            return self::FAILURE;
+        }
+        $user = $existing ?? User::create([
+            'organization_id' => $responder->organization_id,
+            'name' => $email,
+            'email' => $email,
+            'password' => Str::random(64),
+            'role' => 'responder',
+            'status' => 'active',
+        ]);
         if ($responderId) {
             $user->forceFill(['responder_id' => $responderId])->save();
         }

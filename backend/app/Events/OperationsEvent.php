@@ -7,11 +7,11 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 
 final class OperationsEvent implements ShouldBroadcastNow
 {
-    public function __construct(public readonly array $envelope) {}
+    public function __construct(public readonly int $organizationId, public readonly array $envelope) {}
 
     public function broadcastOn(): array
     {
-        return [new PrivateChannel('operations')];
+        return [new PrivateChannel('operations.'.$this->organizationId)];
     }
 
     public function broadcastAs(): string

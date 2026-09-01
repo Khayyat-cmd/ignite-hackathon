@@ -17,14 +17,14 @@ final class IncidentWorkflow
     public function recommend(Incident $incident, int $actorId): Incident
     {
         return DB::transaction(function () use ($incident, $actorId) {
-            $incident = Incident::whereKey($incident->id)->lockForUpdate()->firstOrFail();
+            $incident = Incident::where('organization_id', $incident->organization_id)->whereKey($incident->id)->lockForUpdate()->firstOrFail();
             abort_unless(in_array($incident->status, [IncidentStatus::Detected, IncidentStatus::AwaitingApproval], true), 409, 'Incident is not awaiting a recommendation.');
-            $zone = Zone::findOrFail($incident->zone_id);
+            $zone = Zone::where('organization_id', $incident->organization_id)->findOrFail($incident->zone_id);
             $hybrid = $this->isStadiumDemo($incident, $zone);
             $this->requireFreshZone($zone);
             $candidates = [];
             $excluded = [];
-            $responders = Responder::orderBy('id')->limit(config('aman.max_candidates') + 1)->get();
+            $responders = Responder::where('organization_id', $incident->organization_id)->orderBy('id')->limit(config('aman.max_candidates') + 1)->get();
             abort_if($responders->count() > config('aman.max_candidates'), 422, 'Roster exceeds the prototype candidate limit; scope the roster before ranking.');
             foreach ($responders as $responder) {
                 $reason = $this->ineligibleReason($responder, $incident, $hybrid);
@@ -57,14 +57,14 @@ final class IncidentWorkflow
     public function approve(Incident $incident, int $actorId): Incident
     {
         return DB::transaction(function () use ($incident, $actorId) {
-            $incident = Incident::whereKey($incident->id)->lockForUpdate()->firstOrFail();
+            $incident = Incident::where('organization_id', $incident->organization_id)->whereKey($incident->id)->lockForUpdate()->firstOrFail();
             if (in_array($incident->status, [IncidentStatus::Dispatched, IncidentStatus::Acknowledged], true)) {
                 return $incident;
             }
             abort_unless($incident->status === IncidentStatus::AwaitingApproval && $incident->responder_id, 409, 'A recommendation is required before approval.');
-            $zone = Zone::findOrFail($incident->zone_id);
+            $zone = Zone::where('organization_id', $incident->organization_id)->findOrFail($incident->zone_id);
             $this->requireFreshZone($zone);
-            $responder = Responder::whereKey($incident->responder_id)->lockForUpdate()->firstOrFail();
+            $responder = Responder::where('organization_id', $incident->organization_id)->whereKey($incident->responder_id)->lockForUpdate()->firstOrFail();
             $reason = $this->ineligibleReason($responder, $incident, $this->isStadiumDemo($incident, $zone));
             abort_if($reason !== null, 409, 'Recommendation is no longer valid: '.$reason);
             $responder->update(['available' => false]);
@@ -78,7 +78,7 @@ final class IncidentWorkflow
     public function acknowledge(Incident $incident, int $actorId): Incident
     {
         return DB::transaction(function () use ($incident, $actorId) {
-            $incident = Incident::whereKey($incident->id)->lockForUpdate()->firstOrFail();
+            $incident = Incident::where('organization_id', $incident->organization_id)->whereKey($incident->id)->lockForUpdate()->firstOrFail();
             if ($incident->status === IncidentStatus::Acknowledged) {
                 return $incident;
             }
@@ -94,15 +94,15 @@ final class IncidentWorkflow
     {
         return DB::transaction(function () use ($incident, $actorId, $note) {
             // Same zone-before-incident ordering as ingestion avoids a lock inversion.
-            $zone = Zone::whereKey($incident->zone_id)->lockForUpdate()->firstOrFail();
-            $incident = Incident::whereKey($incident->id)->lockForUpdate()->firstOrFail();
+            $zone = Zone::where('organization_id', $incident->organization_id)->whereKey($incident->zone_id)->lockForUpdate()->firstOrFail();
+            $incident = Incident::where('organization_id', $incident->organization_id)->whereKey($incident->id)->lockForUpdate()->firstOrFail();
             if ($incident->status === IncidentStatus::Resolved) {
                 return $incident;
             }
             $this->requireFreshZone($zone);
             abort_if(in_array($zone->risk_level, ['critical', 'unknown'], true), 409, 'Fresh non-critical evidence is required before resolution.');
             if ($incident->assigned_responder_id) {
-                Responder::whereKey($incident->assigned_responder_id)->update(['available' => true]);
+                Responder::where('organization_id', $incident->organization_id)->whereKey($incident->assigned_responder_id)->update(['available' => true]);
             }
             $incident->update(['status' => IncidentStatus::Resolved, 'active_zone_id' => null, 'assigned_responder_id' => null, 'resolved_at' => now()]);
             $this->journal->append(EventType::IncidentResolved, ['note' => $note, 'source' => $incident->source], $zone->id, $incident->id, $actorId);

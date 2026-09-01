@@ -36,7 +36,10 @@ class PublishDomainEvent implements ShouldBeUnique, ShouldQueue
         if (! $event || $event->published_at || in_array(config('broadcasting.default'), ['null', 'log'], true)) {
             return;
         }
-        event(new OperationsEvent($event->envelope()));
+        if ($event->organization_id === null) {
+            return;
+        }
+        event(new OperationsEvent($event->organization_id, $event->envelope()));
         $event->update(['published_at' => now()]);
     }
 }

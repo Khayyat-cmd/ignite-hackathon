@@ -26,7 +26,9 @@ final class ResponderSignals
                 $signals['errors'][$operation] = $e->reason;
             }
         }
-        $zone = $responder->demo_position ? Zone::find($responder->demo_position['zoneId'] ?? '') : null;
+        $zone = $responder->demo_position
+            ? Zone::where('organization_id', $responder->organization_id)->find($responder->demo_position['zoneId'] ?? '')
+            : null;
         if ($zone && config('aman.demo_enabled') && ! app()->environment('production') && config('camara.mode') === 'sandbox') {
             $signals['verificationArea'] = ['latitude' => $zone->latitude, 'longitude' => $zone->longitude, 'radiusMeters' => 1500, 'basis' => 'broad_demo_venue_area_not_zone_membership'];
             try {
@@ -43,7 +45,7 @@ final class ResponderSignals
     public function store(Responder $responder, array $signals, ?int $actorId): Responder
     {
         return DB::transaction(function () use ($responder, $signals, $actorId) {
-            $locked = Responder::whereKey($responder->id)->lockForUpdate()->firstOrFail();
+            $locked = Responder::where('organization_id', $responder->organization_id)->whereKey($responder->id)->lockForUpdate()->firstOrFail();
             if ($locked->signals && ($locked->signals['checkedAt'] ?? '') > $signals['checkedAt']) {
                 return $locked;
             }

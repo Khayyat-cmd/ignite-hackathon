@@ -2,14 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToOrganization;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 
 class Responder extends Model
 {
-    use HasUuids;
+    use BelongsToOrganization, HasUuids;
 
-    protected $fillable = ['name', 'role', 'phone_number', 'authorized', 'available'];
+    protected $fillable = ['organization_id', 'venue_event_id', 'name', 'role', 'phone_number', 'authorized', 'available'];
 
     protected $hidden = ['phone_number'];
 

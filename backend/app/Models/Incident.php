@@ -3,12 +3,13 @@
 namespace App\Models;
 
 use App\Enums\IncidentStatus;
+use App\Models\Concerns\BelongsToOrganization;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 
 class Incident extends Model
 {
-    use HasUuids;
+    use BelongsToOrganization, HasUuids;
 
     protected $guarded = [];
 

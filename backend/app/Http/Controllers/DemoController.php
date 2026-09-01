@@ -11,13 +11,14 @@ use Illuminate\Http\Request;
 
 class DemoController extends Controller
 {
-    public function setup(StadiumDemo $demo): JsonResponse
+    public function setup(Request $request, StadiumDemo $demo): JsonResponse
     {
-        return response()->json($demo->setup());
+        return response()->json($demo->setup($request->user()->organization_id));
     }
 
     public function scenario(Request $request, Zone $zone, StadiumDemo $demo): Zone
     {
+        abort_unless($zone->organization_id === $request->user()->organization_id, 404);
         $input = $request->validate(['action' => 'required|in:calm,crowded,recover,pause']);
 
         return $demo->control($zone, $input['action'], $request->user()->id);
@@ -32,6 +33,7 @@ class DemoController extends Controller
 
     public function population(Request $request, Zone $zone, StadiumDemo $demo): JsonResponse
     {
+        abort_unless($zone->organization_id === $request->user()->organization_id, 404);
         $demo->assertZone($zone);
         abort_unless($zone->boundary, 422, 'Zone geographic boundary is required.');
         $checkedAt = $zone->population_context['checkedAt'] ?? null;

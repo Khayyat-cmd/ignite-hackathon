@@ -6,6 +6,7 @@ use App\Enums\EventType;
 use App\Events\OperationsEvent;
 use App\Jobs\PublishDomainEvent;
 use App\Models\DomainEvent;
+use App\Models\User;
 use App\Services\EventJournal;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -28,7 +29,8 @@ class EventDeliveryTest extends TestCase
     {
         config(['broadcasting.default' => 'reverb']);
         Event::fake([OperationsEvent::class]);
-        $event = DB::transaction(fn () => app(EventJournal::class)->append(EventType::DensityUpdated, ['source' => 'demo']));
+        $user = User::factory()->create();
+        $event = DB::transaction(fn () => app(EventJournal::class)->append(EventType::DensityUpdated, ['source' => 'demo'], actorId: $user->id));
         $job = new PublishDomainEvent($event->id);
         $job->handle();
         $job->handle();

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Jobs\RefreshResponder;
 use App\Models\Responder;
+use App\Models\User;
 use App\Models\Zone;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -27,19 +28,20 @@ final class StadiumDemo
     }
 
     /** Creates a fictional, geographically anchored venue; never changes existing records. */
-    public function setup(): array
+    public function setup(int $organizationId): array
     {
         $this->assertEnabled();
 
-        return DB::transaction(function () {
+        return DB::transaction(function () use ($organizationId) {
             $zones = [];
             foreach (['East Entrance' => 0.0, 'North Concourse' => 0.002, 'West Entrance' => -0.002] as $name => $offset) {
                 $key = self::VENUE.':'.$name;
-                $zone = Zone::where('demo_key', $key)->first();
+                $zone = Zone::where('organization_id', $organizationId)->where('demo_key', $key)->first();
                 if (! $zone) {
                     $lat = 47.486276;
                     $lon = 19.079156 + $offset;
                     $zone = new Zone([
+                        'organization_id' => $organizationId,
                         'name' => 'DEMO - '.$name, 'area_sqm' => 1000,
                         'warning_density' => 1, 'critical_density' => 2, 'people_per_device' => 1,
                         'calibration_note' => 'Fictional stadium: simulated 1:1 calibration, usable area and thresholds. Not a surveyed venue or safety standard.',
@@ -66,10 +68,10 @@ final class StadiumDemo
             ];
             foreach ($responderDefinitions as $index => $definition) {
                 $key = self::VENUE.':responder:'.$index;
-                $responder = Responder::where('demo_key', $key)->first();
+                $responder = Responder::where('organization_id', $organizationId)->where('demo_key', $key)->first();
                 if (! $responder) {
                     $zone = $zones[$definition['zone_index']];
-                    $responder = new Responder(['name' => 'Stadium Responder '.($index + 1), 'role' => 'crowd_marshal', 'phone_number' => $definition['phone'], 'authorized' => true]);
+                    $responder = new Responder(['organization_id' => $organizationId, 'name' => 'Stadium Responder '.($index + 1), 'role' => 'crowd_marshal', 'phone_number' => $definition['phone'], 'authorized' => true]);
                     $responder->forceFill(['demo_key' => $key, 'demo_position' => [
                         'source' => 'simulated_stadium_position', 'venueId' => self::VENUE,
                         'zoneId' => $zone->id,
@@ -133,7 +135,8 @@ final class StadiumDemo
     public function refreshRoster(?int $actorId = null): void
     {
         $this->assertEnabled();
-        Responder::where('demo_key', 'like', self::VENUE.':%')->where('authorized', true)->each(
+        $organizationId = $actorId ? User::find($actorId)?->organization_id : null;
+        Responder::where('organization_id', $organizationId)->where('demo_key', 'like', self::VENUE.':%')->where('authorized', true)->each(
             fn (Responder $responder) => RefreshResponder::dispatch($responder->id, $actorId)
         );
     }

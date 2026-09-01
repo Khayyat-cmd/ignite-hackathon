@@ -13,9 +13,9 @@ use Illuminate\Http\Request;
 
 class ResponderController extends Controller
 {
-    public function index(): LengthAwarePaginator
+    public function index(Request $request): LengthAwarePaginator
     {
-        return Responder::orderBy('id')->paginate(50)->through(function (Responder $responder) {
+        return Responder::where('organization_id', $request->user()->organization_id)->orderBy('id')->paginate(50)->through(function (Responder $responder) {
             $data = $responder->toArray();
             $checkedAt = data_get($responder->signals, 'checkedAt');
             $data['networkFreshness'] = ! $checkedAt ? 'missing' : (CarbonImmutable::parse($checkedAt)->lt(now()->subSeconds(config('aman.signal_max_age_seconds'))) ? 'stale' : 'fresh');
@@ -29,11 +29,12 @@ class ResponderController extends Controller
 
     public function store(CreateResponderRequest $request): JsonResponse
     {
-        return response()->json(Responder::create($request->validated()), 201);
+        return response()->json(Responder::create([...$request->validated(), 'organization_id' => $request->user()->organization_id]), 201);
     }
 
     public function refresh(Request $request, Responder $responder): JsonResponse
     {
+        abort_unless($responder->organization_id === $request->user()->organization_id, 404);
         abort_unless($responder->authorized, 403, 'Device authorization is required.');
         abort_unless(in_array(config('camara.mode'), ['sandbox', 'live'], true) && filled(config('camara.api_key')), 503, 'Nokia credentials and mode must be configured first.');
         RefreshResponder::dispatch($responder->id, $request->user()->id);
@@ -43,6 +44,7 @@ class ResponderController extends Controller
 
     public function demoSignals(Request $request, Responder $responder, ResponderSignals $service): Responder
     {
+        abort_unless($responder->organization_id === $request->user()->organization_id, 404);
         abort_unless(config('aman.demo_enabled') && ! app()->environment('production'), 403, 'Demo mode is disabled.');
         $data = $request->validate([
             'latitude' => 'required|numeric|between:-90,90', 'longitude' => 'required|numeric|between:-180,180',
