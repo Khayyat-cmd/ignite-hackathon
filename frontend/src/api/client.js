@@ -9,12 +9,12 @@ export class ApiError extends Error {
   }
 }
 
-export async function apiRequest(token, path, { method = 'GET', body, signal } = {}) {
+export async function apiRequest(path, { token, method = 'GET', body, signal } = {}) {
   const controller = new AbortController();
   const stop = () => controller.abort();
   signal?.addEventListener('abort', stop, { once: true });
   if (signal?.aborted) controller.abort();
-  const timeout = window.setTimeout(stop, 15_000);
+  const timeout = window.setTimeout(stop, 45_000);
 
   try {
     const response = await fetch(`${API_URL}${path}`, {
@@ -22,7 +22,7 @@ export async function apiRequest(token, path, { method = 'GET', body, signal } =
       signal: controller.signal,
       headers: {
         Accept: 'application/json',
-        Authorization: `Bearer ${token}`,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
       },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
@@ -31,8 +31,8 @@ export async function apiRequest(token, path, { method = 'GET', body, signal } =
     if (!response.ok) {
       const validation = payload?.errors ? Object.values(payload.errors).flat().join(' ') : '';
       const fallback = {
-        401: 'The backend token is missing or expired. Connect with a new operator token.',
-        403: 'This token or demo configuration does not allow that action.',
+        401: 'Your session expired. Sign in again.',
+        403: 'Your account does not have permission for this action.',
         409: 'The state changed or the evidence is stale. Refresh and try the correct next action.',
         422: 'The request is not valid for the current state.',
         429: 'Too many requests. Wait before retrying.',
@@ -47,7 +47,7 @@ export async function apiRequest(token, path, { method = 'GET', body, signal } =
     if (signal?.aborted) throw error;
     if (error instanceof ApiError) throw error;
     if (controller.signal.aborted) throw new ApiError('The request timed out. Check the backend before retrying an action.');
-    throw new ApiError('Cannot reach Laravel. Confirm the backend is running on localhost:8000.');
+    throw new ApiError('Cannot reach AMAN. Confirm the Laravel backend is running on localhost:8000.');
   } finally {
     clearTimeout(timeout);
     signal?.removeEventListener('abort', stop);

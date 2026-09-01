@@ -8,7 +8,7 @@ describe('apiRequest', () => {
   it('sends authorization and parses a successful response', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true })));
     vi.stubGlobal('fetch', fetchMock);
-    await expect(apiRequest('secret', '/zones')).resolves.toEqual({ ok: true });
+    await expect(apiRequest('/zones', { token: 'secret' })).resolves.toEqual({ ok: true });
     expect(fetchMock).toHaveBeenCalledWith('http://localhost:8000/api/v1/zones', expect.objectContaining({
       headers: expect.objectContaining({ Authorization: 'Bearer secret' }),
     }));
@@ -16,14 +16,14 @@ describe('apiRequest', () => {
   it('does not retry a failed mutation and exposes validation details', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ errors: { note: ['Note is required.'] } }), { status: 422 }));
     vi.stubGlobal('fetch', fetchMock);
-    await expect(apiRequest('secret', '/incidents/id/resolve', { method: 'POST', body: {} })).rejects.toThrow('Note is required.');
+    await expect(apiRequest('/incidents/id/resolve', { token: 'secret', method: 'POST', body: {} })).rejects.toThrow('Note is required.');
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
   it('handles unreachable servers and malformed responses', async () => {
     const fetchMock = vi.fn().mockRejectedValueOnce(new TypeError('offline'))
       .mockResolvedValueOnce(new Response('<html>error</html>'));
     vi.stubGlobal('fetch', fetchMock);
-    await expect(apiRequest('secret', '/zones')).rejects.toThrow('Cannot reach Laravel');
-    await expect(apiRequest('secret', '/zones')).rejects.toThrow('unexpected response');
+    await expect(apiRequest('/zones', { token: 'secret' })).rejects.toThrow('Cannot reach AMAN');
+    await expect(apiRequest('/zones', { token: 'secret' })).rejects.toThrow('unexpected response');
   });
 });

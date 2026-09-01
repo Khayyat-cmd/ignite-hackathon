@@ -1,94 +1,109 @@
-import { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { useOperations } from './hooks/useOperations';
-import { ZoneCard } from './components/ZoneCard';
-import { RespondersPanel } from './components/RespondersPanel';
-import { IncidentCard } from './components/IncidentCard';
-import { EventsPanel } from './components/EventsPanel';
-import { Message } from './components/Status';
-import { time } from './utils/format';
+import { useCallback, useEffect, useState } from 'react';
+import { apiRequest } from './api/client';
 
-function Operations({ token, onDisconnect }) {
-  const { query, run, post, busy, notice, actionError, automaticError, automaticRecommendations, setAutomaticRecommendations } = useOperations(token);
-  const [showResolved, setShowResolved] = useState(false);
-  const data = query.data;
-  const disabled = busy || query.isError;
+function storedSession() {
+  try { return JSON.parse(sessionStorage.getItem('aman_session') || 'null'); }
+  catch { sessionStorage.removeItem('aman_session'); return null; }
+}
 
-  async function prepare() {
-    const setup = await post('/demo/setup');
-    for (const zone of setup.zones) {
-      if (!zone.scenario) await post(`/demo/zones/${zone.id}/scenario`, { action: 'calm' });
-    }
-    await post('/demo/network/refresh');
-    for (const zone of setup.zones) await post(`/demo/zones/${zone.id}/population/refresh`);
-  }
+function Field({ label, ...props }) {
+  return <label className="field"><span>{label}</span><input {...props} /></label>;
+}
 
-  const incidents = (data?.incidents || []).filter((incident) => showResolved || incident.status !== 'resolved');
-  return <main>
-    <header className="page-heading"><div><h1>AMAN <span>Operations test</span></h1><p>Prepare → increase crowd → approve response → acknowledge → recover → resolve.</p></div><button onClick={onDisconnect}>Disconnect</button></header>
-    <p className="disclosure">Crowd counts and stadium positions are simulated. Nokia and Orange use official playground responses. No Unity or real message delivery.</p>
-    <div className="toolbar">
-      <button className="primary" disabled={disabled} onClick={() => run(prepare, 'Stadium prepared. Provider requests are queued; wait for updated evidence timestamps.')}>{busy ? 'Working…' : data?.zones.length ? 'Prepare / refresh demo' : 'Prepare stadium'}</button>
-      <button disabled={disabled || !data?.zones.some((zone) => zone.scenario?.active)}
-        onClick={() => run(() => Promise.all(data.zones.map((zone) => post(`/demo/zones/${zone.id}/scenario`, { action: 'pause' }))), 'All crowd scenarios paused.')}>Pause all</button>
-      <button disabled={query.isFetching} onClick={() => query.refetch()}>Refresh</button>
-      <span className="small">{query.isPending ? 'Loading…' : `Updated ${query.dataUpdatedAt ? time(new Date(query.dataUpdatedAt).toISOString()) : 'not yet'}`}</span>
-    </div>
-    {query.isError && <Message error>{query.error.message} {data && 'The last successful snapshot remains visible but may be outdated.'}</Message>}
-    {actionError && <Message error>{actionError}</Message>}
-    {automaticError && <Message error>Automatic recommendation: {automaticError}</Message>}
-    {notice && <Message>{notice}</Message>}
-    {data && (data.integrations.nokia.mode !== 'sandbox' || !data.integrations.nokia.credentialsConfigured) && <Message error>Nokia sandbox is not ready. The UI will not fabricate network results.</Message>}
-    {data && (data.integrations.populationDensity.provider !== 'orange_playground' || !data.integrations.populationDensity.credentialsConfigured) && <Message error>Orange playground is not ready. Crowd scenarios still work independently.</Message>}
+function Access({ onAuthenticated }) {
+  const invitationToken = new URLSearchParams(window.location.search).get('token') || '';
+  const [mode, setMode] = useState(invitationToken ? 'accept' : 'login');
+  const [form, setForm] = useState(invitationToken ? { token: invitationToken } : {});
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const changeMode = (next) => { setMode(next); setForm(next === 'accept' && invitationToken ? { token: invitationToken } : {}); setError(''); };
+  const update = (event) => setForm((current) => ({ ...current, [event.target.name]: event.target.value }));
+  const submit = async (event) => {
+    event.preventDefault();
+    setBusy(true);
+    setError('');
+    try {
+      const path = mode === 'accept' ? '/auth/invitations/accept' : `/auth/${mode}`;
+      const result = await apiRequest(path, { method: 'POST', body: form });
+      if (!result.token) setError(result.message || 'This organization is awaiting approval.');
+      else onAuthenticated(result);
+    } catch (requestError) { setError(requestError.message); }
+    finally { setBusy(false); }
+  };
 
-    <section><div className="section-heading"><h2>Zones</h2><span className="small">The scheduler updates active scenarios every 5 seconds.</span></div>
-      {!data?.zones.length ? <p className="empty">{query.isPending ? 'Loading…' : 'Select Prepare stadium. Older local demo zones are intentionally hidden.'}</p> :
-        <div className="grid three">{data.zones.map((zone) => <ZoneCard key={zone.id} zone={zone} busy={disabled}
-          onScenario={(action) => run(() => post(`/demo/zones/${zone.id}/scenario`, { action }), `${zone.name}: ${action} requested.`)}
-          onPopulation={() => run(() => post(`/demo/zones/${zone.id}/population/refresh`), 'Orange context requested.')} />)}</div>}
-    </section>
+  return <main className="access"><section className="auth-card">
+    <p className="eyebrow">AMAN backend test</p><h1>{mode === 'login' ? 'Sign in' : mode === 'register' ? 'Create organization' : 'Accept invitation'}</h1>
+    <div className="tabs"><button className={mode === 'login' ? 'active' : ''} onClick={() => changeMode('login')}>Login</button><button className={mode === 'register' ? 'active' : ''} onClick={() => changeMode('register')}>Register</button><button className={mode === 'accept' ? 'active' : ''} onClick={() => changeMode('accept')}>Invitation</button></div>
+    <form onSubmit={submit}>
+      {mode === 'register' && <><Field label="Organization name" name="organizationName" value={form.organizationName || ''} onChange={update} required /><Field label="Owner name" name="name" value={form.name || ''} onChange={update} required /></>}
+      {mode === 'accept' && <><Field label="Invitation token" name="token" value={form.token || ''} onChange={update} minLength="64" maxLength="64" required /><Field label="Your name" name="name" value={form.name || ''} onChange={update} required /></>}
+      {mode !== 'accept' && <Field label="Work email" name="email" type="email" autoComplete="email" value={form.email || ''} onChange={update} required />}
+      <Field label="Password" name="password" type="password" minLength="10" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} value={form.password || ''} onChange={update} required />
+      {mode !== 'login' && <Field label="Confirm password" name="password_confirmation" type="password" minLength="10" autoComplete="new-password" value={form.password_confirmation || ''} onChange={update} required />}
+      {error && <p className="message error" role="alert">{error}</p>}
+      <button className="primary" disabled={busy}>{busy ? 'Please wait…' : mode === 'login' ? 'Sign in' : mode === 'register' ? 'Create and sign in' : 'Join organization'}</button>
+    </form>
+  </section></main>;
+}
 
-    <section><div className="section-heading"><h2>Incidents</h2><label className="check"><input type="checkbox" checked={showResolved} onChange={(event) => setShowResolved(event.target.checked)} /> Include resolved</label></div>
-      <label className="check"><input type="checkbox" checked={automaticRecommendations} onChange={(event) => setAutomaticRecommendations(event.target.checked)} /> Automatically request a recommendation after danger is detected</label>
-      <p className="small">Detection and recommendation can be automatic. Approval and resolution remain operator decisions.</p>
-      {!incidents.length ? <p className="empty">No active incident. Increase a zone's crowd.</p> :
-        <div className="grid two">{incidents.map((incident) => <IncidentCard key={incident.id} incident={incident}
-          zone={data?.zones.find((zone) => zone.id === incident.zone_id)} responders={data?.responders || []} busy={disabled}
-          onAction={(action, body) => run(() => post(`/incidents/${incident.id}/${action}`, body), `Incident action completed: ${action}.`)} />)}</div>}
-    </section>
+function Dashboard({ session, token, onLogout }) {
+  const [data, setData] = useState(null);
+  const [events, setEvents] = useState([]);
+  const [members, setMembers] = useState([]);
+  const [eventForm, setEventForm] = useState({ name: '', venueName: '' });
+  const [inviteForm, setInviteForm] = useState({ email: '', role: 'operator' });
+  const [invitationMessage, setInvitationMessage] = useState('');
+  const [error, setError] = useState('');
+  const canManage = ['owner', 'admin'].includes(session.user.role);
 
-    <RespondersPanel responders={data?.responders || []} zones={data?.zones || []} busy={disabled}
-      onRefresh={() => run(() => post('/demo/network/refresh'), 'Nokia refresh queued. A queued response is not proof of provider success.')} />
-    <EventsPanel events={data?.events || []} />
+  const load = useCallback(async () => {
+    setError('');
+    try {
+      const [summary, eventResult, memberResult] = await Promise.all([
+        apiRequest('/organization/dashboard', { token }),
+        apiRequest('/organization/events', { token }),
+        canManage ? apiRequest('/organization/members', { token }) : Promise.resolve({ data: { data: [] } }),
+      ]);
+      setData(summary); setEvents(eventResult.data.data); setMembers(memberResult.data.data);
+    } catch (requestError) { setError(requestError.message); }
+  }, [canManage, token]);
+  useEffect(() => { load(); }, [load]);
+
+  const createEvent = async (event) => {
+    event.preventDefault();
+    try { await apiRequest('/organization/events', { token, method: 'POST', body: eventForm }); setEventForm({ name: '', venueName: '' }); await load(); }
+    catch (requestError) { setError(requestError.message); }
+  };
+  const invite = async (event) => {
+    event.preventDefault();
+    try {
+      const result = await apiRequest('/organization/invitations', { token, method: 'POST', body: inviteForm });
+      setInvitationMessage(`Invitation emailed to ${result.invitation.email}.`); setInviteForm({ email: '', role: 'operator' });
+    } catch (requestError) { setError(requestError.message); }
+  };
+
+  return <main className="dashboard">
+    <header><div><p className="eyebrow">{session.organization.name}</p><h1>Owner dashboard</h1></div><div><span>{session.user.name} · {session.user.role}</span><button onClick={onLogout}>Sign out</button></div></header>
+    {error && <p className="message error" role="alert">{error}</p>}
+    <section className="stats">{Object.entries(data?.counts || {}).map(([label, value]) => <article key={label}><strong>{value}</strong><span>{label.replace(/([A-Z])/g, ' $1')}</span></article>)}</section>
+    <div className="grid">
+      <section className="panel"><h2>Events</h2>{!events.length && <p className="muted">No events yet.</p>}{events.map((item) => <div className="row" key={item.id}><span><strong>{item.name}</strong><small>{item.venue_name}</small></span><b>{item.status}</b></div>)}
+        {canManage && <form onSubmit={createEvent}><h3>Create event</h3><Field label="Event name" value={eventForm.name} onChange={(e) => setEventForm({ ...eventForm, name: e.target.value })} required /><Field label="Venue" value={eventForm.venueName} onChange={(e) => setEventForm({ ...eventForm, venueName: e.target.value })} required /><button className="primary">Create</button></form>}
+      </section>
+      <section className="panel"><h2>Members</h2>{members.map((member) => <div className="row" key={member.id}><span><strong>{member.name}</strong><small>{member.email}</small></span><b>{member.role}</b></div>)}
+        {canManage && <form onSubmit={invite}><h3>Invite member</h3><Field label="Email" type="email" value={inviteForm.email} onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })} required /><label className="field"><span>Role</span><select value={inviteForm.role} onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value })}><option>operator</option><option>admin</option><option>responder</option><option>viewer</option></select></label><button className="primary">Invite</button>{invitationMessage && <p className="message token">{invitationMessage}</p>}</form>}
+      </section>
+    </div><p className="note">Temporary interface for testing authentication and organization administration only.</p>
   </main>;
 }
 
 export default function App() {
-  const [token, setToken] = useState(() => sessionStorage.getItem('aman_operator_token') || '');
-  const [input, setInput] = useState('');
-  const queryClient = useQueryClient();
-  const connect = (event) => {
-    event.preventDefault();
-    const value = input.trim();
-    if (!value) return;
-    sessionStorage.setItem('aman_operator_token', value);
-    setToken(value);
-    setInput('');
+  const [token, setToken] = useState(() => sessionStorage.getItem('aman_token') || '');
+  const [session, setSession] = useState(storedSession);
+  const authenticate = (result) => { sessionStorage.setItem('aman_token', result.token); sessionStorage.setItem('aman_session', JSON.stringify(result)); setToken(result.token); setSession(result); };
+  const logout = async () => {
+    try { await apiRequest('/auth/logout', { token, method: 'POST' }); } catch { /* Clear local access even if backend is offline. */ }
+    sessionStorage.removeItem('aman_token'); sessionStorage.removeItem('aman_session'); setToken(''); setSession(null);
   };
-  const disconnect = () => {
-    queryClient.clear();
-    sessionStorage.removeItem('aman_operator_token');
-    setToken('');
-  };
-  if (token) return <Operations token={token} onDisconnect={disconnect} />;
-  return <main className="connect-page">
-    <h1>AMAN <span>Operations test</span></h1>
-    <p>Connect this standalone React app to the Laravel backend.</p>
-    <section className="card connect">
-      <h2>Operator access</h2>
-      <p>Paste a backend token with <code>read,operate</code> permissions. It is stored only for this browser tab.</p>
-      <form onSubmit={connect}><label className="field">Bearer token<input type="password" autoComplete="off" value={input} onChange={(event) => setInput(event.target.value)} /></label><button className="primary" disabled={!input.trim()}>Connect</button></form>
-      <p className="small">After connecting, the complete demo flow is controlled through buttons; Postman is not needed.</p>
-    </section>
-  </main>;
+  return token && session ? <Dashboard session={session} token={token} onLogout={logout} /> : <Access onAuthenticated={authenticate} />;
 }
