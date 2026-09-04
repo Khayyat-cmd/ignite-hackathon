@@ -4,21 +4,24 @@ namespace App\Http\Controllers;
 
 use App\Enums\IncidentStatus;
 use App\Models\Incident;
+use App\Models\SimulationRun;
 use App\Models\Zone;
+use App\Services\Demo\DemoWorkspace;
 use App\Services\IncidentWorkflow;
 use Illuminate\Http\Request;
 
 class MissionController extends Controller
 {
-    public function index(Request $request): array
+    public function index(Request $request, DemoWorkspace $workspace): array
     {
-        $responderId = $request->user()->responder_id;
-        abort_unless($responderId, 403, 'No responder is linked to this account.');
+        $data = $request->validate(['responderId' => 'required|uuid']);
+        $responderId = $data['responderId'];
         $missions = Incident::where('assigned_responder_id', $responderId)
-            ->where('organization_id', $request->user()->organization_id)
+            ->whereNotNull('active_zone_id')
+            ->where('organization_id', $workspace->operator()->organization_id)
             ->whereIn('status', [IncidentStatus::Dispatched, IncidentStatus::Acknowledged])
             ->orderByDesc('created_at')->limit(50)->get();
-        $zones = Zone::where('organization_id', $request->user()->organization_id)->whereIn('id', $missions->pluck('zone_id'))->get()->keyBy('id');
+        $zones = Zone::where('organization_id', $workspace->operator()->organization_id)->whereIn('id', $missions->pluck('zone_id'))->get()->keyBy('id');
 
         return ['data' => $missions->map(function (Incident $incident) use ($zones) {
             $zone = $zones->get($incident->zone_id);
@@ -33,11 +36,13 @@ class MissionController extends Controller
         })];
     }
 
-    public function acknowledge(Request $request, Incident $incident, IncidentWorkflow $workflow): array
+    public function acknowledge(Request $request, Incident $incident, IncidentWorkflow $workflow, DemoWorkspace $workspace): array
     {
-        abort_unless($incident->organization_id === $request->user()->organization_id, 404);
-        abort_unless($request->user()->responder_id && $incident->assigned_responder_id === $request->user()->responder_id, 403, 'This mission is not assigned to you.');
-        $incident = $workflow->acknowledge($incident, $request->user()->id);
+        $data = $request->validate(['responderId' => 'required|uuid']);
+        abort_unless($incident->organization_id === $workspace->operator()->organization_id, 404);
+        abort_unless($incident->assigned_responder_id === $data['responderId'], 403, 'This mission is not assigned to this responder.');
+        $responder = $workspace->responder($data['responderId'], SimulationRun::where('venue_event_id', $incident->venue_event_id)->firstOrFail());
+        $incident = $workflow->acknowledge($incident, $workspace->responderActor($responder)->id);
 
         return ['id' => $incident->id, 'status' => $incident->status->value];
     }

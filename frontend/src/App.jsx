@@ -1,109 +1,94 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { apiRequest } from './api/client';
+import { usePolling } from './hooks/usePolling';
+import { useAction } from './hooks/useAction';
+import OperatorPanel from './components/OperatorPanel';
+import ResponderPanel from './components/ResponderPanel';
+import { Badge, Notice, time } from './components/Shared';
 
-function storedSession() {
-  try { return JSON.parse(sessionStorage.getItem('aman_session') || 'null'); }
-  catch { sessionStorage.removeItem('aman_session'); return null; }
+function EventView({ id, onRunChanged }) {
+  const load = useCallback((signal) => apiRequest(`/simulations/${id}`, { signal }), [id]);
+  const feed = usePolling(load);
+  const action = useAction();
+  const [tab, setTab] = useState('operator');
+  const [requestedResponder, setRequestedResponder] = useState('');
+  const [mobileVersion, setMobileVersion] = useState(0);
+  const [mobileConnection, setMobileConnection] = useState(null);
+  function openMobile(responderId) {
+    if (mobileConnection?.responderId !== responderId) setMobileConnection(null);
+    setRequestedResponder(responderId); setMobileVersion((v) => v + 1); setTab('mobile');
+  }
+  function control(value) {
+    if (['reset', 'stop'].includes(value) && !window.confirm(value === 'reset'
+      ? 'Archive this rehearsal and create a new paused event? Demo phone access will be revoked.'
+      : 'Stop this rehearsal? Pending missions will end and demo phone access will be revoked.')) return;
+    action.run(async () => {
+      const result = await apiRequest(`/simulations/${id}/control`, { method: 'POST', body: { action: value } });
+      if (result.id !== id) onRunChanged(result.id);
+      else feed.refresh();
+    });
+  }
+  if (!feed.data) return <Notice error={Boolean(feed.error)}>{feed.error || 'Loading event…'}</Notice>;
+  const data = feed.data;
+  return <>
+    <div className="monitor-bar"><span><i className={`dot ${data.stale || feed.error ? 'warning' : data.status === 'running' ? 'normal' : 'unknown'}`} />{feed.error ? 'Connection interrupted' : data.stale ? 'Data outdated' : data.status === 'running' ? 'Monitoring live' : data.status === 'paused' ? 'Simulation paused' : 'Monitoring stopped'}</span><span>Stadium Match · Event {data.id}</span><span className="muted">{data.zones.length} zones connected</span></div>
+    <details className="demo-controls"><summary>Demo simulation controls</summary><section className="event-controls">
+      <div><p className="eyebrow">Stadium rehearsal #{data.id}</p><h2>{data.phase.replaceAll('_', ' ')}</h2>
+        <p><Badge value={data.status} /> {data.elapsedSeconds}s elapsed · Last sample {time(data.observedAt)} · Revision {data.revision}</p></div>
+      <div className="action-row">
+        <button className="primary" disabled={action.busy || data.status !== 'paused'} onClick={() => control('start')}>{data.elapsedSeconds ? 'Resume simulation' : 'Start demo simulation'}</button>
+        <button disabled={action.busy || data.status !== 'running'} onClick={() => control('pause')}>Pause</button>
+        <button disabled={action.busy || data.status === 'stopped'} onClick={() => control('stop')}>Stop</button>
+        <button disabled={action.busy} onClick={() => control('reset')}>Reset</button>
+      </div>
+    </section></details>
+    <Notice error>{feed.error || action.error}</Notice>
+    {data.stale && <Notice>Readings are stale. If the event is running, check that Laravel’s scheduler is running. Displayed counts are the last received sample.</Notice>}
+    <div className="tabs" role="tablist" aria-label="Demo applications">
+      <button id="operator-tab" role="tab" aria-selected={tab === 'operator'} aria-controls="operator-panel" className={tab === 'operator' ? 'selected' : ''} onClick={() => setTab('operator')}>◫ Operations overview</button>
+      <button id="mobile-tab" role="tab" aria-selected={tab === 'mobile'} aria-controls="mobile-panel" className={tab === 'mobile' ? 'selected' : ''} onClick={() => setTab('mobile')}>▯ Responder mobile <span className="test-label">TEST</span></button>
+    </div>
+    {tab === 'operator'
+      ? <div role="tabpanel" id="operator-panel" aria-labelledby="operator-tab"><OperatorPanel data={feed.error ? { ...data, stale: true } : data} refresh={feed.refresh} openMobile={openMobile} /></div>
+      : <div role="tabpanel" id="mobile-panel" aria-labelledby="mobile-tab"><ResponderPanel key={mobileVersion} data={data} requestedId={requestedResponder} connection={mobileConnection} setConnection={setMobileConnection} refreshOperator={feed.refresh} /></div>}
+  </>;
 }
 
-function Field({ label, ...props }) {
-  return <label className="field"><span>{label}</span><input {...props} /></label>;
-}
-
-function Access({ onAuthenticated }) {
-  const invitationToken = new URLSearchParams(window.location.search).get('token') || '';
-  const [mode, setMode] = useState(invitationToken ? 'accept' : 'login');
-  const [form, setForm] = useState(invitationToken ? { token: invitationToken } : {});
-  const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
-  const changeMode = (next) => { setMode(next); setForm(next === 'accept' && invitationToken ? { token: invitationToken } : {}); setError(''); };
-  const update = (event) => setForm((current) => ({ ...current, [event.target.name]: event.target.value }));
-  const submit = async (event) => {
-    event.preventDefault();
-    setBusy(true);
-    setError('');
-    try {
-      const path = mode === 'accept' ? '/auth/invitations/accept' : `/auth/${mode}`;
-      const result = await apiRequest(path, { method: 'POST', body: form });
-      if (!result.token) setError(result.message || 'This organization is awaiting approval.');
-      else onAuthenticated(result);
-    } catch (requestError) { setError(requestError.message); }
-    finally { setBusy(false); }
-  };
-
-  return <main className="access"><section className="auth-card">
-    <p className="eyebrow">AMAN backend test</p><h1>{mode === 'login' ? 'Sign in' : mode === 'register' ? 'Create organization' : 'Accept invitation'}</h1>
-    <div className="tabs"><button className={mode === 'login' ? 'active' : ''} onClick={() => changeMode('login')}>Login</button><button className={mode === 'register' ? 'active' : ''} onClick={() => changeMode('register')}>Register</button><button className={mode === 'accept' ? 'active' : ''} onClick={() => changeMode('accept')}>Invitation</button></div>
-    <form onSubmit={submit}>
-      {mode === 'register' && <><Field label="Organization name" name="organizationName" value={form.organizationName || ''} onChange={update} required /><Field label="Owner name" name="name" value={form.name || ''} onChange={update} required /></>}
-      {mode === 'accept' && <><Field label="Invitation token" name="token" value={form.token || ''} onChange={update} minLength="64" maxLength="64" required /><Field label="Your name" name="name" value={form.name || ''} onChange={update} required /></>}
-      {mode !== 'accept' && <Field label="Work email" name="email" type="email" autoComplete="email" value={form.email || ''} onChange={update} required />}
-      <Field label="Password" name="password" type="password" minLength="10" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} value={form.password || ''} onChange={update} required />
-      {mode !== 'login' && <Field label="Confirm password" name="password_confirmation" type="password" minLength="10" autoComplete="new-password" value={form.password_confirmation || ''} onChange={update} required />}
-      {error && <p className="message error" role="alert">{error}</p>}
-      <button className="primary" disabled={busy}>{busy ? 'Please wait…' : mode === 'login' ? 'Sign in' : mode === 'register' ? 'Create and sign in' : 'Join organization'}</button>
-    </form>
-  </section></main>;
-}
-
-function Dashboard({ session, token, onLogout }) {
-  const [data, setData] = useState(null);
-  const [events, setEvents] = useState([]);
-  const [members, setMembers] = useState([]);
-  const [eventForm, setEventForm] = useState({ name: '', venueName: '' });
-  const [inviteForm, setInviteForm] = useState({ email: '', role: 'operator' });
-  const [invitationMessage, setInvitationMessage] = useState('');
-  const [error, setError] = useState('');
-  const canManage = ['owner', 'admin'].includes(session.user.role);
-
-  const load = useCallback(async () => {
-    setError('');
-    try {
-      const [summary, eventResult, memberResult] = await Promise.all([
-        apiRequest('/organization/dashboard', { token }),
-        apiRequest('/organization/events', { token }),
-        canManage ? apiRequest('/organization/members', { token }) : Promise.resolve({ data: { data: [] } }),
-      ]);
-      setData(summary); setEvents(eventResult.data.data); setMembers(memberResult.data.data);
-    } catch (requestError) { setError(requestError.message); }
-  }, [canManage, token]);
-  useEffect(() => { load(); }, [load]);
-
-  const createEvent = async (event) => {
-    event.preventDefault();
-    try { await apiRequest('/organization/events', { token, method: 'POST', body: eventForm }); setEventForm({ name: '', venueName: '' }); await load(); }
-    catch (requestError) { setError(requestError.message); }
-  };
-  const invite = async (event) => {
-    event.preventDefault();
-    try {
-      const result = await apiRequest('/organization/invitations', { token, method: 'POST', body: inviteForm });
-      setInvitationMessage(`Invitation emailed to ${result.invitation.email}.`); setInviteForm({ email: '', role: 'operator' });
-    } catch (requestError) { setError(requestError.message); }
-  };
-
-  return <main className="dashboard">
-    <header><div><p className="eyebrow">{session.organization.name}</p><h1>Owner dashboard</h1></div><div><span>{session.user.name} · {session.user.role}</span><button onClick={onLogout}>Sign out</button></div></header>
-    {error && <p className="message error" role="alert">{error}</p>}
-    <section className="stats">{Object.entries(data?.counts || {}).map(([label, value]) => <article key={label}><strong>{value}</strong><span>{label.replace(/([A-Z])/g, ' $1')}</span></article>)}</section>
-    <div className="grid">
-      <section className="panel"><h2>Events</h2>{!events.length && <p className="muted">No events yet.</p>}{events.map((item) => <div className="row" key={item.id}><span><strong>{item.name}</strong><small>{item.venue_name}</small></span><b>{item.status}</b></div>)}
-        {canManage && <form onSubmit={createEvent}><h3>Create event</h3><Field label="Event name" value={eventForm.name} onChange={(e) => setEventForm({ ...eventForm, name: e.target.value })} required /><Field label="Venue" value={eventForm.venueName} onChange={(e) => setEventForm({ ...eventForm, venueName: e.target.value })} required /><button className="primary">Create</button></form>}
-      </section>
-      <section className="panel"><h2>Members</h2>{members.map((member) => <div className="row" key={member.id}><span><strong>{member.name}</strong><small>{member.email}</small></span><b>{member.role}</b></div>)}
-        {canManage && <form onSubmit={invite}><h3>Invite member</h3><Field label="Email" type="email" value={inviteForm.email} onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })} required /><label className="field"><span>Role</span><select value={inviteForm.role} onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value })}><option>operator</option><option>admin</option><option>responder</option><option>viewer</option></select></label><button className="primary">Invite</button>{invitationMessage && <p className="message token">{invitationMessage}</p>}</form>}
-      </section>
-    </div><p className="note">Temporary interface for testing authentication and organization administration only.</p>
+function Workspace() {
+  const load = useCallback((signal) => apiRequest('/simulations', { signal }), []);
+  const list = usePolling(load, { interval: 15000 });
+  const [selected, setSelected] = useState(null);
+  const [attendees, setAttendees] = useState(6000);
+  const action = useAction();
+  const runs = list.data?.data?.data || [];
+  const id = selected ?? runs.find((run) => run.status !== 'stopped')?.id ?? runs[0]?.id;
+  function changeRun(next) { setSelected(next); list.refresh(); }
+  function create() {
+    action.run(async () => {
+      const run = await apiRequest('/simulations', { method: 'POST', body: { attendeeCount: Number(attendees) } });
+      changeRun(run.id);
+    });
+  }
+  return <main className="workspace">
+    <div className="app-chrome"><span className="brand"><span className="brand-mark">A</span> AMAN <span className="brand-divider">/</span><small>COMMAND CENTER</small></span><span className="chrome-label">Event operations</span></div>
+    <header><div><p className="eyebrow">Operational workspace</p><h1>Every zone. One clear picture.</h1><p className="header-subtitle">Monitor the crowd. Coordinate your team. Keep people safe.</p></div>
+    </header>
+    <p className="demo-label"><span className="test-label">DEMO ENVIRONMENT</span> Fictional attendees and network signals. No real-world dispatch or external API calls.</p>
+    <Notice error>{list.error || action.error}</Notice>
+    {list.loading && !list.data && <p>Finding your events…</p>}
+    <details className="setup" open={!id}><summary>Event workspace & rehearsal setup</summary>
+      {runs.length > 0 && <label><span>Rehearsal</span><select value={id || ''} onChange={(e) => changeRun(Number(e.target.value))}>{runs.map((run) => <option key={run.id} value={run.id}>Event #{run.id} · {run.status} · {run.attendee_count} attendees</option>)}</select></label>}
+      {!list.loading && !runs.some((run) => run.status !== 'stopped') && <form onSubmit={(e) => { e.preventDefault(); create(); }}>
+        <label><span>Fictional attendees (6,000 recommended)</span><input type="number" min="100" max="10000" step="1" value={attendees} onChange={(e) => setAttendees(e.target.value)} required /></label>
+        <button className="primary" disabled={action.busy}>{action.busy ? 'Preparing event…' : 'Create stadium event'}</button>
+      </form>}
+      <p className="muted">Start → wait about 60 seconds → dispatch → open responder phone → acknowledge → report on scene → watch dispersal → resolve.</p>
+    </details>
+    {id && <EventView key={id} id={id} onRunChanged={changeRun} />}
+    <footer>AMAN · Crowd safety operations<span>Simulated network provider · Location-based monitoring</span></footer>
   </main>;
 }
 
 export default function App() {
-  const [token, setToken] = useState(() => sessionStorage.getItem('aman_token') || '');
-  const [session, setSession] = useState(storedSession);
-  const authenticate = (result) => { sessionStorage.setItem('aman_token', result.token); sessionStorage.setItem('aman_session', JSON.stringify(result)); setToken(result.token); setSession(result); };
-  const logout = async () => {
-    try { await apiRequest('/auth/logout', { token, method: 'POST' }); } catch { /* Clear local access even if backend is offline. */ }
-    sessionStorage.removeItem('aman_token'); sessionStorage.removeItem('aman_session'); setToken(''); setSession(null);
-  };
-  return token && session ? <Dashboard session={session} token={token} onLogout={logout} /> : <Access onAuthenticated={authenticate} />;
+  return <Workspace />;
 }

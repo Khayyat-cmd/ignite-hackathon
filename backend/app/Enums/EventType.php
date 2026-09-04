@@ -12,4 +12,7 @@ enum EventType: string
     case IncidentResolved = 'incident_resolved';
     case ResponderUpdated = 'responder_updated';
     case PopulationUpdated = 'population_updated';
+    case SimulationUpdated = 'simulation_updated';
+    case SimulationStopped = 'simulation_stopped';
+    case MissionMessage = 'mission_message';
 }

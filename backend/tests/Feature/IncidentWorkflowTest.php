@@ -77,7 +77,9 @@ class IncidentWorkflowTest extends TestCase
         $this->postJson($base.'/resolve', ['note' => 'Operator verified clear exits.'])->assertConflict();
         $this->travel(1)->seconds();
         $this->observe(50);
-        $this->postJson($base.'/resolve', ['note' => 'Operator verified clear exits.'])->assertOk()->assertJsonPath('status', 'resolved');
+        $this->postJson($base.'/resolve')->assertConflict();
+        $this->travel(15)->seconds();
+        $this->postJson($base.'/resolve')->assertOk()->assertJsonPath('status', 'resolved');
         $this->assertTrue($responder->fresh()->available);
         $this->assertNull(Incident::first()->active_zone_id);
         $this->postJson($base.'/resolve', ['note' => 'Duplicate retry.'])->assertOk();
@@ -91,6 +93,16 @@ class IncidentWorkflowTest extends TestCase
         $this->postJson('/api/v1/incidents/'.$id.'/recommend')->assertOk();
         $this->travel(3)->minutes();
         $this->postJson('/api/v1/incidents/'.$id.'/approve', ['routeReviewed' => true])->assertConflict();
+    }
+
+    public function test_a_noncritical_zone_without_a_timer_starts_one_on_its_next_reading(): void
+    {
+        $this->zone->forceFill(['risk_level' => 'normal', 'noncritical_since' => null])->save();
+        $this->travel(1)->seconds();
+
+        $this->observe(50);
+
+        $this->assertTrue($this->zone->fresh()->noncritical_since->equalTo(now()));
     }
 
     public function test_no_eligible_responder_keeps_incident_unassigned(): void

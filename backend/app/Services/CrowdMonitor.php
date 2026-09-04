@@ -48,13 +48,18 @@ final class CrowdMonitor
                     $risk = 'critical';
                 }
                 $reading = [
+                    'uncertainDeviceCount' => $input['uncertainDeviceCount'] ?? 0,
                     'sampleId' => $input['sampleId'], 'source' => $source, 'observedAt' => $observedAt->toISOString(),
                     'deviceCount' => $input['deviceCount'], 'estimatedPeople' => $people,
                     'areaSquareMeters' => $zone->area_sqm, 'densityPerSquareMeter' => $density === null ? null : round($density, 4),
                     'criticalDensityThreshold' => $zone->critical_density, 'riskLevel' => $risk,
                     'estimateBasis' => $people === null ? 'device_count_only' : 'configured_people_per_device',
                 ];
-                $zone->forceFill(['latest_reading' => $reading, 'last_observed_at' => $observedAt, 'risk_level' => $risk])->save();
+                $noncriticalSince = in_array($risk, ['critical', 'unknown'], true)
+                    ? null
+                    : (in_array($zone->risk_level, ['critical', 'unknown'], true) || $zone->noncritical_since === null ? $observedAt : $zone->noncritical_since);
+                $zone->forceFill(['latest_reading' => $reading, 'last_observed_at' => $observedAt,
+                    'noncritical_since' => $noncriticalSince, 'risk_level' => $risk])->save();
                 $event = $this->journal->append(EventType::DensityUpdated, $reading, $zone->id, actorId: $actorId);
 
                 if ($risk === 'critical' && ! Incident::where('active_zone_id', $zone->id)->exists()) {

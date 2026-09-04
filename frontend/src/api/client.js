@@ -1,4 +1,4 @@
-const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1').replace(/\/$/, '');
+const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1/demo').replace(/\/$/, '');
 
 export class ApiError extends Error {
   constructor(message, status = 0, retryAfter = null) {
@@ -9,7 +9,7 @@ export class ApiError extends Error {
   }
 }
 
-export async function apiRequest(path, { token, method = 'GET', body, signal } = {}) {
+export async function apiRequest(path, { method = 'GET', body, signal } = {}) {
   const controller = new AbortController();
   const stop = () => controller.abort();
   signal?.addEventListener('abort', stop, { once: true });
@@ -22,7 +22,6 @@ export async function apiRequest(path, { token, method = 'GET', body, signal } =
       signal: controller.signal,
       headers: {
         Accept: 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
       },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
@@ -31,8 +30,7 @@ export async function apiRequest(path, { token, method = 'GET', body, signal } =
     if (!response.ok) {
       const validation = payload?.errors ? Object.values(payload.errors).flat().join(' ') : '';
       const fallback = {
-        401: 'Your session expired. Sign in again.',
-        403: 'Your account does not have permission for this action.',
+        403: 'This demo action is not available in the current state.',
         409: 'The state changed or the evidence is stale. Refresh and try the correct next action.',
         422: 'The request is not valid for the current state.',
         429: 'Too many requests. Wait before retrying.',
