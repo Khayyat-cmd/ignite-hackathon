@@ -1,6 +1,6 @@
 # AMAN architecture
 
-## System flow
+    ## System flow
 
 1. The backend receives Nokia network information and crowd readings for each zone.
 2. It calculates crowd density, compares it with configured venue thresholds and creates an incident when risk is detected.

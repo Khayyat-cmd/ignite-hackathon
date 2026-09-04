@@ -94,7 +94,7 @@ class SimulationController extends Controller
             $result['incidents'] = Incident::where('venue_event_id', $run->venue_event_id)->orderByDesc('created_at')->limit(100)->get();
             $result['providerExamples'] = $snapshot['providerExamples'] ?? [];
             $result['assumptions'] = ['One fictional device per attendee.', 'One-metre location accuracy is a simulation assumption.',
-                'All network responses are local fixtures, not Nokia responses.', 'No real calls, SMS or push notifications are sent.'];
+                'Reachability uses linked Nokia sandbox devices; other network responses are local fixtures.', 'No real calls, SMS or push notifications are sent.'];
         }
 
         return response()->json($result)->header('Cache-Control', 'no-store');
@@ -120,6 +120,6 @@ class SimulationController extends Controller
             'phase' => $snapshot['phase'] ?? 'ready', 'observedAt' => $snapshot['observedAt'] ?? null,
             'stale' => ! isset($snapshot['observedAt']) || CarbonImmutable::parse($snapshot['observedAt'])->lt(now()->subSeconds(15)),
             'quality' => $snapshot['quality'] ?? [], 'zoneCounts' => $snapshot['zoneCounts'] ?? [],
-            'externalRequests' => 0];
+            'reachabilityProvider' => 'nokia_sandbox'];
     }
 }

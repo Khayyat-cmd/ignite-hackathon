@@ -147,4 +147,23 @@ final class LocationProvider
 
         return ['verificationResult' => $result, 'lastLocationTime' => $location['lastLocationTime']];
     }
+
+    public function verifyAssignedArea(array $definition, ?string $zoneId, ?array $location): array
+    {
+        $zone = collect($definition['zones'])->firstWhere('id', $zoneId);
+        if (! $zoneId || ! $zone || ! $location) {
+            return ['verificationResult' => 'UNKNOWN', 'zoneId' => $zoneId, 'area' => null, 'source' => 'simulated_network'];
+        }
+        [$left, $bottom, $right, $top] = $zone['bounds'];
+        $area = ['areaType' => 'CIRCLE',
+            'center' => $this->coordinates($definition, ($left + $right) / 2, ($bottom + $top) / 2),
+            'radius' => min($right - $left, $top - $bottom) / 2 - 1];
+        $result = $this->verify($location, $area);
+        $time = CarbonImmutable::parse($location['lastLocationTime']);
+        if ($time->lt(now()->subSeconds(15)) || $time->gt(now()->addSeconds(5))) {
+            $result['verificationResult'] = 'UNKNOWN';
+        }
+
+        return [...$result, 'zoneId' => $zoneId, 'area' => $area, 'source' => 'simulated_network'];
+    }
 }

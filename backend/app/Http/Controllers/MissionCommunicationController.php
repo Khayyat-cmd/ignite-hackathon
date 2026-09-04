@@ -5,9 +5,11 @@ namespace App\Http\Controllers;
 use App\Enums\EventType;
 use App\Enums\IncidentStatus;
 use App\Models\Incident;
+use App\Models\Responder;
 use App\Models\SimulationRun;
 use App\Services\Demo\DemoWorkspace;
 use App\Services\EventJournal;
+use App\Services\Simulation\LocationProvider;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -54,6 +56,14 @@ class MissionCommunicationController extends Controller
                 abort_unless($run->status === 'running', 409, 'Start the simulation before reporting arrival.');
                 $zoneKey = collect($run->definition['zones'])->firstWhere('id', $locked->zone_id)['key'] ?? null;
                 abort_unless(in_array($zoneKey, ['east', 'south'], true), 409, 'This demo only models recovery for East Entrance and South Concourse.');
+                $responder = Responder::findOrFail($locked->assigned_responder_id);
+                $verification = app(LocationProvider::class)->verifyAssignedArea(
+                    $run->definition, $locked->zone_id, data_get($responder->signals, 'rawResponses.location'));
+                abort_unless($verification['verificationResult'] === 'TRUE', 409,
+                    'Your arrival is not yet verified. Wait until you reach the assigned area and location tracking updates.');
+                $locked->update(['decision' => [...($locked->decision ?? []),
+                    'arrivalVerification' => [...$verification, 'checkedAt' => now()->toISOString()],
+                    'workStartedAt' => data_get($locked->decision, 'workStartedAt') ?? now()->toISOString()]]);
                 $interventions = $run->interventions ?? [];
                 $interventions[$zoneKey] ??= $run->elapsed_seconds;
                 $run->update(['interventions' => $interventions, 'intervention_at' => $interventions['east'] ?? null]);

@@ -1,6 +1,12 @@
 <?php
 
 return [
+    'reachability' => [
+        'key' => env('CAMARA_API_KEY'),
+        'enabled' => env('NOKIA_REACHABILITY_ENABLED', true),
+        'url' => 'https://network-as-code.p-eu.apihub.nokia.io/device-status/device-reachability-status/v1/retrieve',
+        'devices' => ['+99999991001', '+99999991002', '+99999991001', '+99999991003'],
+    ],
     // Demo ingestion is deliberately off until explicitly enabled by a developer.
     'demo_enabled' => (bool) env('AMAN_DEMO_ENABLED', false),
     'observation_max_age_seconds' => 120,

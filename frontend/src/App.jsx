@@ -32,7 +32,7 @@ function EventView({ id, onRunChanged }) {
   const data = feed.data;
   return <>
     <div className="monitor-bar"><span><i className={`dot ${data.stale || feed.error ? 'warning' : data.status === 'running' ? 'normal' : 'unknown'}`} />{feed.error ? 'Connection interrupted' : data.stale ? 'Data outdated' : data.status === 'running' ? 'Monitoring live' : data.status === 'paused' ? 'Simulation paused' : 'Monitoring stopped'}</span><span>Stadium Match · Event {data.id}</span><span className="muted">{data.zones.length} zones connected</span></div>
-    <details className="demo-controls"><summary>Demo simulation controls</summary><section className="event-controls">
+    <section className="demo-controls"><h2>Demo simulation controls</h2><section className="event-controls">
       <div><p className="eyebrow">Stadium rehearsal #{data.id}</p><h2>{data.phase.replaceAll('_', ' ')}</h2>
         <p><Badge value={data.status} /> {data.elapsedSeconds}s elapsed · Last sample {time(data.observedAt)} · Revision {data.revision}</p></div>
       <div className="action-row">
@@ -41,7 +41,7 @@ function EventView({ id, onRunChanged }) {
         <button disabled={action.busy || data.status === 'stopped'} onClick={() => control('stop')}>Stop</button>
         <button disabled={action.busy} onClick={() => control('reset')}>Reset</button>
       </div>
-    </section></details>
+    </section></section>
     <Notice error>{feed.error || action.error}</Notice>
     {data.stale && <Notice>Readings are stale. If the event is running, check that Laravel’s scheduler is running. Displayed counts are the last received sample.</Notice>}
     <div className="tabs" role="tablist" aria-label="Demo applications">
@@ -73,17 +73,17 @@ function Workspace() {
     <div className="app-chrome"><span className="brand"><span className="brand-mark">A</span> AMAN <span className="brand-divider">/</span><small>COMMAND CENTER</small></span><span className="chrome-label">Event operations</span></div>
     <header><div><p className="eyebrow">Operational workspace</p><h1>Every zone. One clear picture.</h1><p className="header-subtitle">Monitor the crowd. Coordinate your team. Keep people safe.</p></div>
     </header>
-    <p className="demo-label"><span className="test-label">DEMO ENVIRONMENT</span> Fictional attendees and network signals. No real-world dispatch or external API calls.</p>
+    <p className="demo-label"><span className="test-label">DEMO ENVIRONMENT</span> Crowd and positions are simulated. Responder reachability uses linked Nokia sandbox devices.</p>
     <Notice error>{list.error || action.error}</Notice>
     {list.loading && !list.data && <p>Finding your events…</p>}
-    <details className="setup" open={!id}><summary>Event workspace & rehearsal setup</summary>
+    <section className="setup"><h2>Event workspace & rehearsal setup</h2>
       {runs.length > 0 && <label><span>Rehearsal</span><select value={id || ''} onChange={(e) => changeRun(Number(e.target.value))}>{runs.map((run) => <option key={run.id} value={run.id}>Event #{run.id} · {run.status} · {run.attendee_count} attendees</option>)}</select></label>}
       {!list.loading && !runs.some((run) => run.status !== 'stopped') && <form onSubmit={(e) => { e.preventDefault(); create(); }}>
         <label><span>Fictional attendees (6,000 recommended)</span><input type="number" min="100" max="10000" step="1" value={attendees} onChange={(e) => setAttendees(e.target.value)} required /></label>
         <button className="primary" disabled={action.busy}>{action.busy ? 'Preparing event…' : 'Create stadium event'}</button>
       </form>}
-      <p className="muted">Start → wait about 60 seconds → dispatch → open responder phone → acknowledge → report on scene → watch dispersal → resolve.</p>
-    </details>
+      <p className="muted">Start → dispatch → acknowledge → arrive → start managing the crowd → watch dispersal → resolve.</p>
+    </section>
     {id && <EventView key={id} id={id} onRunChanged={changeRun} />}
     <footer>AMAN · Crowd safety operations<span>Simulated network provider · Location-based monitoring</span></footer>
   </main>;

@@ -28,6 +28,8 @@ class MissionController extends Controller
 
             return [
                 'id' => $incident->id, 'status' => $incident->status->value,
+                'arrivalVerification' => data_get($incident->decision, 'arrivalVerification'),
+                'workStartedAt' => data_get($incident->decision, 'workStartedAt'),
                 'source' => $incident->source, 'approvedAt' => $incident->approved_at?->toISOString(),
                 'destination' => ['zoneId' => $zone->id, 'name' => $zone->name,
                     'latitude' => $zone->latitude, 'longitude' => $zone->longitude,

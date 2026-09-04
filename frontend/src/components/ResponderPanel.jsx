@@ -20,7 +20,7 @@ function Phone({ responderId, refreshOperator }) {
       if (kind === 'acknowledge') {
         await apiRequest(`/missions/${mission.id}/acknowledge`, { method: 'POST', body: { responderId } });
       } else {
-        const messages = { en_route: 'On my way to the assigned zone.', on_scene: 'On scene and working to safely redirect attendees.' };
+        const messages = { en_route: 'On my way to the assigned zone.', on_scene: 'Started managing the crowd and safely redirecting attendees.' };
         if (!attempt.current || attempt.current.kind !== kind || attempt.current.missionId !== mission.id) {
           attempt.current = { missionId: mission.id, clientMessageId: crypto.randomUUID(), kind, body: messages[kind] };
         }
@@ -29,7 +29,7 @@ function Phone({ responderId, refreshOperator }) {
         attempt.current = null;
       }
       const recoverySeconds = mission.destination.name === 'South Concourse' ? 55 : 80;
-      setConfirmation(kind === 'on_scene' ? `Arrival reported. Simulated redirection has begun; ${mission.destination.name} clears gradually over about ${recoverySeconds} seconds.` : 'Update sent to the command center.');
+      setConfirmation(kind === 'on_scene' ? `Work started. Simulated redirection has begun; ${mission.destination.name} clears gradually over about ${recoverySeconds} seconds.` : 'Update sent to the command center.');
       feed.refresh(); refreshOperator(); setMessageRevision((r) => r + 1);
     });
   }
@@ -44,9 +44,10 @@ function Phone({ responderId, refreshOperator }) {
       <div className="phone-actions">
         <button className="primary" disabled={action.busy || mission.status !== 'dispatched'} onClick={() => report('acknowledge')}>Acknowledge mission</button>
         <button disabled={action.busy || mission.status !== 'acknowledged'} onClick={() => report('en_route')}>I’m on my way</button>
-        <button disabled={action.busy || mission.status !== 'acknowledged'} onClick={() => report('on_scene')}>I’m on scene and working</button>
+        <button disabled={action.busy || Boolean(feed.error) || mission.status !== 'acknowledged' || mission.arrivalVerification?.verificationResult !== 'TRUE' || Boolean(mission.workStartedAt)} onClick={() => report('on_scene')}>{mission.workStartedAt ? 'Managing the crowd' : 'Start managing the crowd'}</button>
       </div>
       <Notice>{confirmation}</Notice>
+      <p className="arrival-status" role="status">{mission.status === 'dispatched' ? 'Acknowledge the mission to begin.' : !feed.error && mission.arrivalVerification?.verificationResult === 'TRUE' ? 'Arrived at the assigned area.' : 'Tracking your location — arrival not yet verified.'}</p>
       <Messages key={mission.id} incidentId={mission.id} responderId={responderId} mobile revision={messageRevision} />
     </section>}
   </div>;

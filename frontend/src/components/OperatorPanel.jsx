@@ -18,6 +18,8 @@ function IncidentActions({ incident, refresh, openMobile, responders, zones, sta
   }
   return <div>
     <p>Recommended responder: <strong>{selected?.name || 'No eligible responder'}</strong></p>
+    {dispatched && <p className="arrival-status">{incident.status === 'dispatched' ? 'Waiting for acknowledgment' : !stale && incident.decision?.arrivalVerification?.verificationResult === 'TRUE' ? 'Arrived at the assigned area' : 'Tracking responder — arrival not yet verified'}</p>}
+    {incident.decision?.workStartedAt && <p>Responder is managing the crowd.</p>}
     {incident.decision && <details><summary>Why this responder?</summary><pre>{JSON.stringify(incident.decision, null, 2)}</pre></details>}
     <Notice error>{action.error}</Notice>
     {active && ['detected', 'awaiting_approval'].includes(incident.status) && <div className="action-row">
@@ -77,7 +79,9 @@ export default function OperatorPanel({ data, refresh, openMobile }) {
     <section><div className="section-heading"><div><p className="eyebrow">Ground operations</p><h2>Response team</h2></div><span className="muted">Availability & communication health</span></div><div className="responder-grid">{data.responders.map((responder, index) => <article className="panel responder-card" key={responder.id}>
       <div className="responder-avatar">R{String(index + 1).padStart(2, '0')}</div>
       <div className="section-heading"><h3>{responder.name}</h3><Badge value={responder.available ? 'available' : 'assigned'} /></div>
-      <p>Mobile data: <strong>{responder.signals?.reachability?.dataReachable ? 'Reachable' : 'Not reachable'}</strong></p>
+      <p>Mobile data: <strong>{responder.signals?.reachability?.status === 'unknown' ? 'Unknown' : responder.signals?.reachability?.dataReachable ? 'Reachable' : 'Not reachable'}</strong></p>
+      <small>Nokia sandbox · {responder.signals?.reachability?.sandboxDevice} · Checked {time(responder.signals?.reachability?.checkedAt)}</small>
+      <Notice error>{responder.signals?.reachability?.error}</Notice>
       <p>Congestion: <Badge value={responder.signals?.congestion?.[0]?.congestionLevel} /></p>
       <p className="position-line">Stadium position: <strong>x {responder.signals?.simulationPoint?.x?.toFixed?.(1) ?? '—'} · z {responder.signals?.simulationPoint?.y?.toFixed?.(1) ?? '—'}</strong></p>
       <small>{responder.signals?.communicationAdvice}</small>

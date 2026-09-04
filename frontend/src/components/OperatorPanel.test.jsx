@@ -7,6 +7,15 @@ const zone = { id: 'east', name: 'East Entrance', risk_level: 'critical', area_s
 const base = { attendeeCount: 3000, quality: { located: 2100, outside: 900 }, zones: [zone], responders: [], incidents: [], status: 'running', stale: false };
 
 describe('Command center', () => {
+  it('waits for acknowledgment even when an older snapshot has verified location', () => {
+    const incident = { id: 'i1', zone_id: 'east', active_zone_id: 'east', status: 'dispatched', decision: { arrivalVerification: { verificationResult: 'TRUE' } } };
+    const html = renderToStaticMarkup(<OperatorPanel data={{ ...base, incidents: [incident] }} />);
+    expect(html).toContain('Waiting for acknowledgment');
+    expect(html).not.toContain('Arrived at the assigned area');
+    const arrived = renderToStaticMarkup(<OperatorPanel data={{ ...base, incidents: [{ ...incident, status: 'acknowledged' }] }} />);
+    expect(arrived).toContain('Arrived at the assigned area');
+    expect(arrived).toContain('arrival-status');
+  });
   it('renders backend counts and an empty incident state without fabricated alerts', () => {
     const html = renderToStaticMarkup(<OperatorPanel data={base} />);
     expect(html).toContain('2,100');

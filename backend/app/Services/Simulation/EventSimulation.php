@@ -26,6 +26,7 @@ final class EventSimulation
         private CrowdMonitor $monitor,
         private IncidentWorkflow $workflow,
         private EventJournal $journal,
+        private NokiaReachability $reachability,
     ) {}
 
     public function assertEnabled(): void
@@ -36,6 +37,10 @@ final class EventSimulation
     public function create(User $actor, int $count = 6000): SimulationRun
     {
         $this->assertEnabled();
+
+        if (DB::transactionLevel() === 0) {
+            $this->reachability->refresh();
+        }
 
         return DB::transaction(function () use ($actor, $count) {
             Organization::whereKey($actor->organization_id)->lockForUpdate()->firstOrFail();
@@ -115,7 +120,7 @@ final class EventSimulation
         }
     }
 
-    /** One pass per five seconds. No catch-up storm after downtime and no external network I/O. */
+    /** One pass per five seconds, with cached reachability refreshed before transaction locks. */
     public function tick(): void
     {
         if (! config('aman.demo_enabled')) {
@@ -132,6 +137,9 @@ final class EventSimulation
 
     public function advance(int $id): void
     {
+        if (SimulationRun::whereKey($id)->where('status', 'running')->exists()) {
+            $this->reachability->refresh();
+        }
         DB::transaction(function () use ($id) {
             $run = SimulationRun::whereKey($id)->lockForUpdate()->firstOrFail();
             $now = CarbonImmutable::now();
@@ -184,7 +192,7 @@ final class EventSimulation
             $responder = $responders[$member['id']];
             $point = $member;
             $mission = $missions->get($member['id']);
-            if ($mission && in_array($mission->status, [IncidentStatus::Dispatched, IncidentStatus::Acknowledged], true)) {
+            if ($mission && $mission->status === IncidentStatus::Acknowledged) {
                 $destination = collect($definition['zones'])->firstWhere('id', $mission->zone_id);
                 [$left, $bottom, $right, $top] = $destination['bounds'];
                 $point = data_get($responder->signals, 'simulationPoint', $member);
@@ -192,16 +200,22 @@ final class EventSimulation
                 $dy = ($bottom + $top) / 2 - $point['y'];
                 $distance = hypot($dx, $dy);
                 $zoneKey = $destination['key'];
-                $arrived = isset(($run->interventions ?? [])[$zoneKey]);
-                $fraction = $arrived ? 1 : ($distance > 0 ? min(1, 7 / $distance) : 0);
+                $fraction = $distance > 0 ? min(1, 7 / $distance) : 0;
                 $point = ['x' => $point['x'] + $dx * $fraction, 'y' => $point['y'] + $dy * $fraction];
             }
             $raw = $this->provider->responderResponses($definition, $point, $index, $run->elapsed_seconds, $now, ! empty($run->interventions));
-            $verificationArea = ['areaType' => 'CIRCLE', 'center' => $this->provider->coordinates($definition, -15, 0), 'radius' => 14];
-            $raw['verification'] = $this->provider->verify($raw['location'], $verificationArea);
+            $raw['verification'] = $this->provider->verifyAssignedArea($definition, $mission?->zone_id, $raw['location']);
+            if ($mission && in_array($mission->status, [IncidentStatus::Dispatched, IncidentStatus::Acknowledged], true)) {
+                $mission->update(['decision' => [...($mission->decision ?? []),
+                    'arrivalVerification' => $mission->status === IncidentStatus::Acknowledged
+                        ? [...$raw['verification'], 'checkedAt' => $now->toISOString()] : null]]);
+            }
+            $verificationArea = $raw['verification']['area'];
+            $networkReachability = $this->reachability->forResponder($index);
+            $raw['reachability'] = $networkReachability;
             $signals = ['source' => 'simulated_network', 'checkedAt' => $now->toISOString(),
                 'location' => [...$raw['location']['area']['center'], 'accuracyMeters' => 1, 'observedAt' => $now->toISOString()],
-                'reachability' => [...$raw['reachability'], 'dataReachable' => in_array('DATA', $raw['reachability']['connectivity'], true), 'observedAt' => $now->toISOString()],
+                'reachability' => $networkReachability,
                 'congestion' => $raw['congestion'], 'verification' => $raw['verification'],
                 'simulationPoint' => ['x' => $point['x'], 'y' => $point['y']], 'rawResponses' => $raw,
                 'verificationArea' => $verificationArea, 'communicationAdvice' => $raw['congestion'][0]['congestionLevel'] === 'High'
@@ -227,7 +241,7 @@ final class EventSimulation
         $run->snapshot = ['source' => 'simulated_network', 'observedAt' => $now->toISOString(),
             'phase' => $phase, 'quality' => $quality, 'zoneCounts' => $counts,
             'positions' => $positions, 'providerExamples' => $examples,
-            'locationRequestsThisTick' => $run->attendee_count, 'externalRequests' => 0];
+            'locationRequestsThisTick' => $run->attendee_count, 'reachabilityProvider' => 'nokia_sandbox'];
         $run->save();
         $this->journal->append(EventType::SimulationUpdated, ['runId' => $run->id, 'venueEventId' => $run->venue_event_id,
             'revision' => $run->revision, 'phase' => $phase, 'quality' => $quality], actorId: $run->created_by);

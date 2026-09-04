@@ -42,7 +42,7 @@ final class IncidentWorkflow
                     'distanceMeters' => round($this->distance($zone->latitude, $zone->longitude, $location['latitude'], $location['longitude']), 1),
                     'accuracyMeters' => $location['accuracyMeters'],
                     'locationSource' => $responder->signals['source'],
-                    'reachabilitySource' => $responder->signals['source'],
+                    'reachabilitySource' => data_get($responder->signals, 'reachability.source', $responder->signals['source']),
                 ];
             }
             usort($candidates, fn ($a, $b) => ($a['distanceMeters'] <=> $b['distanceMeters']) ?: strcmp($a['responderId'], $b['responderId']));
