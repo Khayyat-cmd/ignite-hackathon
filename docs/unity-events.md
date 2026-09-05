@@ -1,31 +1,32 @@
-# Unity integration
+# Standalone Unity integration
 
-The website receives live backend events and forwards them to the Unity WebGL build. Unity never receives provider API keys, backend secrets or authority to change the official incident state.
+Unity runs as an independent application on the control room's second screen. It does not embed in Electron and Electron does not forward events to it. Both applications obtain state from Laravel, which keeps them synchronized and allows either client to reconnect independently.
 
-## Unity bridge
+The Unity work is owned by the Unity developer. This repository owns the backend contract and representative payload fixtures.
 
-The Unity developer creates an `AmanBridge` GameObject with:
+## Connection flow
 
-```text
-OnAmanEvent(string json)
-```
+1. Authenticate with a read-only, event-scoped client credential supplied at deployment time.
+2. Load the current simulation or event snapshot from the versioned backend API.
+3. Subscribe to the backend operations event stream.
+4. Record the last applied `sequence` and ignore duplicate `eventId` values.
+5. After reconnecting, fetch events after that sequence, apply them in order, then resume the live stream.
 
-- With an iframe, the website sends the event using `postMessage`; the Unity page validates the website origin and forwards it with `unityInstance.SendMessage`.
-- With a React Unity component, the website calls the component library's `sendMessage` function.
-
-Unity must signal when it is ready so the website can deliver any buffered events.
+Unity must not receive provider credentials, LLM credentials, responder phone numbers, private operator notes, or authority to change incident state. If the live connection drops, it should show a visible stale indicator and keep the last valid scene until a snapshot refresh succeeds.
 
 ## Events
 
 | Event | Unity action |
 | --- | --- |
-| `density_updated` | Update count, density and zone colour. |
+| `density_updated` | Update estimated count, density, quality, and zone colour. |
 | `danger_detected` | Highlight a zone requiring attention. |
-| `responder_selected` | Show the recommended responder. |
+| `responder_selected` | Show the operator-approved responder assignment state. |
 | `response_started` | Start the approved response animation. |
 | `response_acknowledged` | Show responder acknowledgement. |
 | `incident_resolved` | Close the incident and restore the current zone state. |
-| `responder_updated` | Update responder location and reachability. |
+| `responder_updated` | Update the responder's render-safe position and availability. |
+
+AI advice is intentionally absent from the Unity contract. It is an operator decision aid in Electron, not simulation truth.
 
 ## Message shape
 
@@ -42,11 +43,12 @@ Unity must signal when it is ready so the website can deliver any buffered event
     "deviceCount": 250,
     "estimatedPeople": 250,
     "densityPerSquareMeter": 2.5,
-    "riskLevel": "critical"
+    "riskLevel": "critical",
+    "quality": "simulated"
   }
 }
 ```
 
-Values may be `null` when no justified estimate is available. Unity should ignore duplicate `eventId` values and unknown events, match objects by UUID, and never present device counts as exact people counts.
+Values may be `null` when no justified estimate is available. Unity should ignore unknown event names, match entities by stable IDs, and never present device counts as exact people counts.
 
-The website subscribes to the private Reverb channel `operations`. After reconnecting, it reloads current records and replays missed events from `GET /api/v1/events` before applying buffered live messages.
+The exact authenticated snapshot, replay, and broadcast endpoints are part of the planned production API. The current hackathon backend exposes the demo snapshot routes listed in `backend-api.md`.

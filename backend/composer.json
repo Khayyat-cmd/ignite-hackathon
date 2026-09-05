@@ -37,7 +37,8 @@
     "scripts": {
         "setup": [
             "composer install",
-            "@php artisan aman:configure"
+            "@php -r \"file_exists('.env') || copy('.env.example', '.env');\"",
+            "@php artisan key:generate --ansi"
         ],
         "dev": [
             "Composer\\Config::disableProcessTimeout",
