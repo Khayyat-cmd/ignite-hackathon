@@ -33,8 +33,28 @@ describe('Command center', () => {
     expect(html).toContain('Concourse Marshal');
     expect(html).toContain('Stadium position');
     expect(html).toContain('x 32.5');
-    expect(html).toContain('I reviewed the route');
-    expect(html).toContain('Dispatch responder');
+    expect(html).toContain('I reviewed the evidence and route');
+    expect(html).toContain('Dispatch selected responder');
+  });
+  it('renders structured decision support and keeps operator approval explicit', () => {
+    const incident = {
+      id: 'i1', zone_id: 'east', active_zone_id: 'east', status: 'awaiting_approval', responder_id: 'r1',
+      decision: {
+        candidates: [{ responderId: 'r1', distanceMeters: 42 }],
+        adviceStatus: 'ready',
+        advice: {
+          summary: 'Crowd density is rising at the east entrance.', urgency: 'high', confidence: 'medium',
+          proposedAction: 'Send the nearest reachable marshal and open the alternate lane.',
+          recommendedResponderId: 'r1', evidence: ['Critical density reading', 'Responder is data reachable'],
+          uncertainties: ['Camera confirmation is unavailable'], model: 'gpt-5.6-luna', generatedAt: '2026-09-05T12:00:00Z',
+        },
+      },
+    };
+    const html = renderToStaticMarkup(<OperatorPanel data={{ ...base, responders: [{ id: 'r1', name: 'Concourse Marshal', available: true, signals: {} }], incidents: [incident] }} />);
+    expect(html).toContain('Response brief');
+    expect(html).toContain('Crowd density is rising');
+    expect(html).toContain('Accept advice &amp; dispatch');
+    expect(html).toContain('Operator approval required');
   });
   it('projects boundaries within the view and handles missing geometry', () => {
     expect(projectZones([])).toEqual([]);
