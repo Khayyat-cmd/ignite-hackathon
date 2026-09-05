@@ -13,8 +13,10 @@ Route::prefix('v1/demo')->middleware('throttle:api')->group(function () {
     Route::post('simulations', [SimulationController::class, 'store']);
     Route::post('simulations/{run}/control', [SimulationController::class, 'control']);
     Route::post('incidents/{incident}/recommend', [IncidentController::class, 'recommend']);
+    Route::post('incidents/{incident}/advice', [IncidentController::class, 'advise']);
     Route::post('incidents/{incident}/approve', [IncidentController::class, 'approve']);
     Route::post('incidents/{incident}/resolve', [IncidentController::class, 'resolve']);
+    Route::get('responders', [MissionController::class, 'responders']);
     Route::get('missions', [MissionController::class, 'index']);
     Route::post('missions/{incident}/acknowledge', [MissionController::class, 'acknowledge']);
     Route::get('missions/{incident}/messages', [MissionCommunicationController::class, 'index']);

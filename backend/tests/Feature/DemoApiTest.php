@@ -22,6 +22,7 @@ class DemoApiTest extends TestCase
         parent::setUp();
         config(['aman.demo_enabled' => true, 'camara.mode' => 'disabled']);
         config(['aman.reachability.key' => 'test', 'aman.reachability.enabled' => true]);
+        config(['services.openai.key' => null]);
         Http::preventStrayRequests();
         Http::fake(fn ($request) => Http::response([
             'reachable' => $request['device']['phoneNumber'] !== '+99999991003',
@@ -44,6 +45,10 @@ class DemoApiTest extends TestCase
         }
 
         $incident = Incident::where('venue_event_id', $run->venue_event_id)->firstOrFail();
+        $this->getJson('/api/v1/demo/responders')->assertOk()
+            ->assertJsonCount(4, 'data')
+            ->assertJsonStructure(['data' => [['id', 'name', 'role', 'available']]])
+            ->assertJsonMissingPath('data.0.phone_number');
         $this->postJson("/api/v1/demo/incidents/{$incident->id}/approve", ['routeReviewed' => true])->assertOk();
         $incident->refresh();
         $responder = Responder::findOrFail($incident->assigned_responder_id);

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\EventType;
 use App\Enums\IncidentStatus;
+use App\Jobs\GenerateIncidentAdvice;
 use App\Models\Incident;
 use App\Models\Responder;
 use App\Models\SimulationRun;
@@ -17,7 +18,7 @@ final class IncidentWorkflow
 
     public function recommend(Incident $incident, int $actorId): Incident
     {
-        return DB::transaction(function () use ($incident, $actorId) {
+        $incident = DB::transaction(function () use ($incident, $actorId) {
             $incident = Incident::where('organization_id', $incident->organization_id)->whereKey($incident->id)->lockForUpdate()->firstOrFail();
             $this->requireActiveSimulation($incident);
             abort_unless(in_array($incident->status, [IncidentStatus::Detected, IncidentStatus::AwaitingApproval], true), 409, 'Incident is not awaiting a recommendation.');
@@ -47,7 +48,18 @@ final class IncidentWorkflow
             }
             usort($candidates, fn ($a, $b) => ($a['distanceMeters'] <=> $b['distanceMeters']) ?: strcmp($a['responderId'], $b['responderId']));
             $selected = $candidates[0] ?? null;
-            $decision = ['method' => 'deterministic_simulated_distance', 'source' => $incident->source, 'candidates' => $candidates, 'excluded' => $excluded, 'requiresRouteReview' => true, 'reason' => $selected ? 'nearest_eligible_reachable_responder' : 'no_eligible_responder'];
+            $previousAdvice = data_get($incident->decision, 'advice');
+            $previousAdviceStatus = data_get($incident->decision, 'adviceStatus');
+            $previousCandidateIds = collect(data_get($incident->decision, 'candidates', []))->pluck('responderId')->values()->all();
+            $candidateIds = collect($candidates)->pluck('responderId')->values()->all();
+            $sameCandidates = $previousCandidateIds === $candidateIds;
+            $adviceStatus = $selected && filled(config('services.openai.key'))
+                ? ($sameCandidates && in_array($previousAdviceStatus, ['pending', 'ready'], true) ? $previousAdviceStatus : 'pending')
+                : 'disabled';
+            $decision = ['method' => 'deterministic_simulated_distance', 'source' => $incident->source, 'candidates' => $candidates, 'excluded' => $excluded, 'requiresRouteReview' => true, 'reason' => $selected ? 'nearest_eligible_reachable_responder' : 'no_eligible_responder', 'adviceStatus' => $adviceStatus];
+            if ($previousAdvice && $sameCandidates && $adviceStatus === 'ready') {
+                $decision['advice'] = $previousAdvice;
+            }
             $incident->update(['responder_id' => $selected['responderId'] ?? null, 'decision' => $decision, 'status' => $selected ? IncidentStatus::AwaitingApproval : IncidentStatus::Detected]);
             if ($selected) {
                 $this->journal->append(EventType::ResponderSelected, ['responderId' => $selected['responderId'], 'decision' => $decision], $zone->id, $incident->id, $actorId);
@@ -55,24 +67,41 @@ final class IncidentWorkflow
 
             return $incident;
         }, attempts: 3);
+
+        if (data_get($incident->decision, 'adviceStatus') === 'pending') {
+            GenerateIncidentAdvice::dispatch($incident->id)->afterCommit();
+        }
+
+        return $incident;
     }
 
-    public function approve(Incident $incident, int $actorId): Incident
+    public function approve(Incident $incident, int $actorId, ?string $selectedResponderId = null): Incident
     {
-        return DB::transaction(function () use ($incident, $actorId) {
+        return DB::transaction(function () use ($incident, $actorId, $selectedResponderId) {
             $incident = Incident::where('organization_id', $incident->organization_id)->whereKey($incident->id)->lockForUpdate()->firstOrFail();
             $this->requireActiveSimulation($incident);
             if (in_array($incident->status, [IncidentStatus::Dispatched, IncidentStatus::Acknowledged], true)) {
                 return $incident;
             }
             abort_unless($incident->status === IncidentStatus::AwaitingApproval && $incident->responder_id, 409, 'A recommendation is required before approval.');
+            if ($selectedResponderId !== null) {
+                $candidateIds = collect(data_get($incident->decision, 'candidates', []))->pluck('responderId');
+                abort_unless($candidateIds->containsStrict($selectedResponderId), 422, 'Select an eligible responder from the current recommendation.');
+                $incident->responder_id = $selectedResponderId;
+            }
             $zone = Zone::where('organization_id', $incident->organization_id)->findOrFail($incident->zone_id);
             $this->requireFreshZone($zone);
             $responder = Responder::where('organization_id', $incident->organization_id)->whereKey($incident->responder_id)->lockForUpdate()->firstOrFail();
             $reason = $this->ineligibleReason($responder, $incident);
             abort_if($reason !== null, 409, 'Recommendation is no longer valid: '.$reason);
             $responder->update(['available' => false]);
-            $incident->update(['assigned_responder_id' => $responder->id, 'status' => IncidentStatus::Dispatched, 'approved_at' => now()]);
+            $decision = $incident->decision ?? [];
+            $decision['operatorReview'] = [
+                'selectedResponderId' => $responder->id,
+                'advisorAccepted' => data_get($decision, 'advice.recommendedResponderId') === $responder->id,
+                'reviewedAt' => now()->toISOString(),
+            ];
+            $incident->update(['responder_id' => $responder->id, 'assigned_responder_id' => $responder->id, 'decision' => $decision, 'status' => IncidentStatus::Dispatched, 'approved_at' => now()]);
             $this->journal->append(EventType::ResponseStarted, ['responderId' => $responder->id, 'source' => $incident->source, 'deliveryStatus' => 'awaiting_acknowledgement', 'qodStatus' => 'not_requested'], $incident->zone_id, $incident->id, $actorId);
 
             return $incident;

@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Services\Ai\IncidentAdvisor;
+use App\Services\Ai\OpenAiIncidentAdvisor;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -15,7 +17,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->bind(IncidentAdvisor::class, OpenAiIncidentAdvisor::class);
     }
 
     /**

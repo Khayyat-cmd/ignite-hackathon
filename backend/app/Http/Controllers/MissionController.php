@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\IncidentStatus;
 use App\Models\Incident;
+use App\Models\Responder;
 use App\Models\SimulationRun;
 use App\Models\Zone;
 use App\Services\Demo\DemoWorkspace;
@@ -12,6 +13,15 @@ use Illuminate\Http\Request;
 
 class MissionController extends Controller
 {
+    public function responders(DemoWorkspace $workspace): array
+    {
+        return ['data' => Responder::query()
+            ->where('organization_id', $workspace->operator()->organization_id)
+            ->where('authorized', true)
+            ->orderBy('name')
+            ->get(['id', 'name', 'role', 'available'])];
+    }
+
     public function index(Request $request, DemoWorkspace $workspace): array
     {
         $data = $request->validate(['responderId' => 'required|uuid']);

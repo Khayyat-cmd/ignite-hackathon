@@ -15,4 +15,5 @@ enum EventType: string
     case SimulationUpdated = 'simulation_updated';
     case SimulationStopped = 'simulation_stopped';
     case MissionMessage = 'mission_message';
+    case IncidentAdviceReady = 'incident_advice_ready';
 }
