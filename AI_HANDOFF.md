@@ -39,6 +39,11 @@ The user's real `OPENAI_API_KEY` is in `backend/.env`. A minimal live request re
 
 - Secure Electron shell with context isolation, renderer sandboxing, Node integration disabled, a narrow preload API, and external navigation controls.
 - Fixed three-pane control-room shell that fills the window and never scrolls the page: a left rail with the situation summary and zone conditions, a centre stage with the zone schematic and the response team, and a right rail with the incident queue and the selected incident.
+- The zone schematic carries the operational overlay: an incident badge in each affected zone's top-right corner, a pin per located responder (from `signals.location`), and a dashed link with the backend distance between the focused incident and its responder. Zone name and headcount sit in a label band above each polygon so pins and badges never cover them.
+- An attention bar above the workspace counts incidents awaiting dispatch approval, names their zones, jumps to the oldest, and sounds a short WebAudio cue when the count rises. The cue is mutable and the preference persists in `localStorage`; new queue rows flash briefly on arrival.
+- Zone rows carry a client-side density trend: a sparkline over the last 24 polls plus a signed delta and window (`↑ +0.28 /m² · 30s`). History lives only in the renderer and resets with the window.
+- One focus links the three panes. Selecting an incident highlights its zone on the map and in the left rail and highlights the responder assigned or recommended for it; selecting a zone filters the queue and opens its incident; selecting a responder opens the incident it is assigned to. Responder cards show their current assignment.
+- The operator approval and resolution blocks are sticky to the bottom of the right rail, so the primary decision is never below the fold.
 - Simulation transport (start/resume, pause, stop, reset) and event selection live in the top bar; the rehearsal-data disclaimer, sample time, revision, and backend reachability live in a single status strip.
 - Neutral graphite chrome with a single blue interaction accent, so green/amber/red are only ever used for risk and status. Type, spacing, and radii follow one token scale; numeric readouts are tabular.
 - Structured response brief with urgency, confidence, evidence, uncertainty, proposed action, and model metadata.
@@ -50,7 +55,11 @@ The user's real `OPENAI_API_KEY` is in `backend/.env`. A minimal live request re
 - Android and iOS Flutter scaffold.
 - Environment-based API URL.
 - Local demo call-sign selection persisted on the device.
-- Five-second mission polling, foreground new-assignment banner, acknowledgement, en-route/on-scene updates, and mission messaging.
+- Five-second mission polling, acknowledgement, en-route/on-scene updates, and mission messaging.
+- A new assignment triggers haptic feedback and a full-screen takeover that stays until it is acknowledged, with repeated pulses capped at six. The old snackbar remains as the fallback for an assignment that arrives already acknowledged.
+- The mission action (acknowledge, then heading there / on scene) is pinned to the bottom of the screen and hides while the keyboard is open.
+- The connection pill reports the real poll state — LIVE, DELAYED, RECONNECTING, or OFFLINE — with the age of the last successful sync.
+- The mission thread scrolls inside its own bounded box, labels each message with its sender and time, renders progress events as centred system lines, and shows an unread badge for control-room instructions until the responder scrolls or taps the thread.
 - Professional field-operations visual system aligned with the desktop app.
 
 ## Run locally
@@ -101,7 +110,7 @@ flutter analyze
 flutter test
 ```
 
-The focused backend tests, 9 renderer tests, Flutter analysis, Flutter widget test, and Electron AppImage build pass. The repository's older full backend suite has pre-existing failures because it references removed authenticated routes and service classes such as `NokiaNetwork`, `OrangePopulationDensity`, and `PublishDomainEvent`; do not attribute those failures to the new three-client work without checking the baseline history.
+The focused backend tests, 11 renderer tests, Flutter analysis, 3 Flutter widget tests, and the Electron AppImage build pass. The backend tests above were not re-run for the UI work; the renderer, Flutter, and packaging commands were. The repository's older full backend suite has pre-existing failures because it references removed authenticated routes and service classes such as `NokiaNetwork`, `OrangePopulationDensity`, and `PublishDomainEvent`; do not attribute those failures to the new three-client work without checking the baseline history.
 
 ## Remaining work
 
