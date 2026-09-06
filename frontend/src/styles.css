@@ -346,7 +346,9 @@ input:disabled, textarea:disabled { color: var(--text-3); }
 .responder-card h3 { flex: 1; font-size: var(--fs-md); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .signal { display: flex; align-items: center; gap: 6px; color: var(--text-2); font-size: var(--fs-sm); }
 .signal b { margin-left: auto; color: var(--text); font-weight: 500; }
-.signal-meta { color: var(--text-3); font-size: var(--fs-micro); font-family: var(--mono); overflow-wrap: anywhere; }
+.fact-tags { display: flex; flex-wrap: wrap; gap: 5px; }
+.fact-tags > span { display: inline-flex; align-items: center; min-height: 20px; padding: 2px 7px; border: 1px solid var(--line-2); border-radius: 10px; background: var(--panel-2); color: var(--text-2); font-size: var(--fs-micro); text-transform: capitalize; }
+.decision-facts { display: grid; gap: 6px; padding: 8px 9px; border-radius: var(--r-sm); background: var(--panel-2); }
 .responder-empty { padding: var(--sp-3); color: var(--text-3); font-size: var(--fs-sm); }
 
 /* ---------- incident queue + detail ---------- */
@@ -567,4 +569,4 @@ pre {
 
 /* Desktop feel: chrome is not selectable, content is. */
 body { user-select: none; }
-.brief-summary, .brief-action, .evidence, .bubble, .signal-meta, pre, input, textarea, select { user-select: text; }
+.brief-summary, .brief-action, .evidence, .bubble, .fact-tags, input, textarea, select { user-select: text; }

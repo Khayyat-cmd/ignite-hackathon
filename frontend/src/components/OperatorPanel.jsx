@@ -39,6 +39,7 @@ function ZoneRow({ zone, stale, selected, onSelect }) {
 function ResponderCard({ responder, index }) {
   const reachability = responder.signals?.reachability;
   const point = responder.signals?.simulationPoint;
+  const accuracy = responder.signals?.location?.accuracyMeters;
   const reachable = reachability?.status === 'unknown' ? 'Unknown' : reachability?.dataReachable ? 'Reachable' : 'Not reachable';
   return <article className="responder-card">
     <div className="responder-top">
@@ -56,13 +57,29 @@ function ResponderCard({ responder, index }) {
       <b>x {point?.x?.toFixed?.(1) ?? '—'} · z {point?.y?.toFixed?.(1) ?? '—'}</b>
     </div>
     <Notice error>{reachability?.error}</Notice>
-    <details>
-      <summary>Connection detail</summary>
-      <p className="signal-meta">Nokia sandbox {reachability?.sandboxDevice} · checked {time(reachability?.checkedAt)}</p>
-      <p className="hint">{responder.signals?.communicationAdvice}</p>
-      <pre>{JSON.stringify(responder.signals?.rawResponses, null, 2)}</pre>
-    </details>
+    <div className="fact-tags" aria-label="Responder signal facts">
+      <span>Nokia sandbox</span>
+      {reachability?.checkedAt && <span>Checked {time(reachability.checkedAt)}</span>}
+      {accuracy != null && <span>Location ±{accuracy} m</span>}
+    </div>
   </article>;
+}
+
+function DecisionFacts({ incident, responder }) {
+  const decision = incident.decision || {};
+  const candidate = (decision.candidates || []).find((item) => item.responderId === responder?.id);
+  const advised = decision.advice?.recommendedResponderId === responder?.id;
+  if (!candidate && !advised) return null;
+  return <div className="decision-facts" aria-label="Responder selection facts">
+    <span className="label">Selection facts</span>
+    <div className="fact-tags">
+      {candidate?.distanceMeters != null && <span>{candidate.distanceMeters} m away</span>}
+      {responder?.signals?.reachability?.dataReachable && <span>Mobile data confirmed</span>}
+      {responder?.role && <span>{responder.role.replaceAll('_', ' ')}</span>}
+      {advised && <span>Supported by response brief</span>}
+    </div>
+    <p className="hint">Only responders that pass the current eligibility and availability checks appear in the dispatch list.</p>
+  </div>;
 }
 
 function Brief({ decision, busy, retry }) {
@@ -141,10 +158,7 @@ function IncidentDetail({ incident, refresh, responders, zones, stale, stopped, 
         {incident.status === 'dispatched' ? 'Waiting for acknowledgment' : arrived ? 'Arrived at the assigned area' : 'Tracking responder — arrival not yet verified'}
       </p>}
       {incident.decision?.workStartedAt && <p className="hint">Responder is managing the crowd.</p>}
-      {incident.decision && <details>
-        <summary>Why this responder?</summary>
-        <pre>{JSON.stringify(incident.decision, null, 2)}</pre>
-      </details>}
+      <DecisionFacts incident={incident} responder={selected} />
       <Notice error={Boolean(action.error)}>{action.error}</Notice>
     </div>
 

@@ -29,12 +29,17 @@ describe('Command center', () => {
     expect(html).not.toContain('risk-critical');
   });
   it('renders a dispatch recommendation and responder stadium position', () => {
-    const html = renderToStaticMarkup(<OperatorPanel data={{ ...base, responders: [{ id: 'r1', name: 'Concourse Marshal', available: true, signals: { simulationPoint: { x: 32.5, y: 0 } } }], incidents: [{ id: 'i1', zone_id: 'east', active_zone_id: 'east', status: 'awaiting_approval', responder_id: 'r1' }] }} />);
+    const html = renderToStaticMarkup(<OperatorPanel data={{ ...base, responders: [{ id: 'r1', name: 'Concourse Marshal', role: 'crowd_marshal', available: true, signals: { simulationPoint: { x: 32.5, y: 0 }, location: { accuracyMeters: 1 }, reachability: { dataReachable: true, checkedAt: '2026-09-05T12:00:00Z' }, rawResponses: { privateDebugData: true } } }], incidents: [{ id: 'i1', zone_id: 'east', active_zone_id: 'east', status: 'awaiting_approval', responder_id: 'r1', decision: { candidates: [{ responderId: 'r1', distanceMeters: 42 }] } }] }} />);
     expect(html).toContain('Concourse Marshal');
     expect(html).toContain('Stadium position');
     expect(html).toContain('x 32.5');
     expect(html).toContain('I reviewed the evidence and route');
     expect(html).toContain('Dispatch selected responder');
+    expect(html).toContain('42 m away');
+    expect(html).toContain('Mobile data confirmed');
+    expect(html).toContain('Location ±1 m');
+    expect(html).not.toContain('privateDebugData');
+    expect(html).not.toContain('Connection detail');
   });
   it('renders structured decision support and keeps operator approval explicit', () => {
     const incident = {
