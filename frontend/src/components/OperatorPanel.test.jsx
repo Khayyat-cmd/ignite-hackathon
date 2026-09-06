@@ -62,6 +62,26 @@ describe('Command center', () => {
     expect(html).toContain('Review before dispatch');
     expect(html).not.toContain('internal-model-name');
   });
+  it('overlays located responders and awaiting incidents on the map', () => {
+    const responder = { id: 'r1', name: 'Concourse Marshal', role: 'crowd_marshal', available: true, signals: { location: { latitude: 33.9005, longitude: 35.5005, accuracyMeters: 1 }, reachability: { dataReachable: true } } };
+    const incident = { id: 'i1', zone_id: 'east', active_zone_id: 'east', status: 'awaiting_approval', responder_id: 'r1', decision: { candidates: [{ responderId: 'r1', distanceMeters: 42 }] } };
+    const html = renderToStaticMarkup(<OperatorPanel data={{ ...base, responders: [responder], incidents: [incident] }} />);
+    expect(html).toContain('map-pin');
+    expect(html).toContain('map-incident');
+    expect(html).toContain('map-link');
+    expect(html).toContain('1 incident awaiting dispatch approval');
+    expect(html).toContain('Review East Entrance');
+    expect(html).not.toContain('NaN');
+  });
+
+  it('leaves the map clean when a responder has no fix and no incident is open', () => {
+    const responder = { id: 'r1', name: 'Concourse Marshal', available: true, signals: { location: { accuracyMeters: 1 } } };
+    const html = renderToStaticMarkup(<OperatorPanel data={{ ...base, responders: [responder] }} />);
+    expect(html).not.toContain('map-pin');
+    expect(html).not.toContain('awaiting dispatch approval</strong>');
+    expect(html).toContain('0 responders located');
+  });
+
   it('projects boundaries within the view and handles missing geometry', () => {
     expect(projectZones([])).toEqual([]);
     expect(projectZones([{ id: 'bad' }])).toEqual([]);

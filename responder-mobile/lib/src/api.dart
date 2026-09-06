@@ -7,6 +7,8 @@ import 'package:uuid/uuid.dart';
 import 'models.dart';
 
 abstract class ResponderGateway {
+  bool get supportsServerConfiguration => false;
+  void configureServer(String baseUrl) {}
   Future<List<Responder>> responders();
   Future<List<Mission>> missions(String responderId);
   Future<List<MissionMessage>> messages(String missionId, String responderId);
@@ -20,7 +22,9 @@ abstract class ResponderGateway {
 }
 
 class AmanApi implements ResponderGateway {
-  AmanApi({http.Client? client}) : _client = client ?? http.Client();
+  AmanApi({http.Client? client})
+    : _client = client ?? http.Client(),
+      _baseUrl = _configuredUrl.replaceFirst(RegExp(r'/$'), '');
 
   static const _configuredUrl = String.fromEnvironment(
     'API_URL',
@@ -28,8 +32,15 @@ class AmanApi implements ResponderGateway {
   );
   final http.Client _client;
   final Uuid _uuid = const Uuid();
+  String _baseUrl;
 
-  String get _baseUrl => _configuredUrl.replaceFirst(RegExp(r'/$'), '');
+  @override
+  bool get supportsServerConfiguration => true;
+
+  @override
+  void configureServer(String baseUrl) {
+    _baseUrl = baseUrl.replaceFirst(RegExp(r'/$'), '');
+  }
 
   @override
   Future<List<Responder>> responders() async {

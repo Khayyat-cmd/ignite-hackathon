@@ -310,7 +310,7 @@ input:disabled, textarea:disabled { color: var(--text-3); }
 .map-zone polygon { fill: var(--risk-fill, #171b21); stroke: var(--risk, var(--text-3)); stroke-width: 1.25; vector-effect: non-scaling-stroke; }
 .map-zone:hover polygon { fill-opacity: .8; }
 .map-zone.map-selected polygon { stroke-width: 2.5; }
-.map-zone text { fill: var(--text); font-size: 12px; font-weight: 600; pointer-events: none; }
+.map-zone text { fill: var(--text); font-size: 12px; font-weight: 600; pointer-events: none; paint-order: stroke; stroke: #080a0d; stroke-width: 3px; stroke-linejoin: round; }
 .map-zone .map-count { fill: var(--text-2); font-size: 10.5px; font-weight: 400; font-family: var(--mono); }
 .map-caption { position: absolute; right: 10px; bottom: 8px; color: #47505b; font-size: 9.5px; letter-spacing: .12em; }
 .map-north { position: absolute; left: 12px; top: 10px; color: var(--text-3); font-size: var(--fs-micro); letter-spacing: .1em; }
@@ -570,3 +570,88 @@ pre {
 /* Desktop feel: chrome is not selectable, content is. */
 body { user-select: none; }
 .brief-summary, .brief-action, .evidence, .bubble, .fact-tags, input, textarea, select { user-select: text; }
+
+/* ---------- attention: decisions waiting on the operator ---------- */
+
+.attentionbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 8px var(--sp-4);
+  border-bottom: 1px solid #5a2a26;
+  background: linear-gradient(90deg, #33191660 0%, #2a1614 100%);
+  color: #f4b5ae;
+  font-size: var(--fs-sm);
+  animation: attention 2s ease-in-out infinite;
+}
+.attentionbar strong { color: #ffd7d2; font-weight: 700; }
+.attentionbar .dot.critical { box-shadow: 0 0 0 3px #dd5b5226; }
+.attention-zones { flex: 1; min-width: 0; color: var(--text-2); font-size: var(--fs-micro); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attentionbar .btn-quiet { color: var(--text-2); }
+@keyframes attention { 50% { border-bottom-color: #8a3a33; } }
+
+.queue-row.fresh { animation: arrive 1.6s ease-out 5; }
+@keyframes arrive { 0%, 100% { background: transparent; } 30% { background: #2a1614; } }
+
+/* ---------- zone trend ---------- */
+
+.zone-trend { grid-column: 1 / -1; display: flex; align-items: center; gap: var(--sp-2); }
+.sparkline { flex: 0 0 auto; width: 44px; height: 14px; overflow: visible; }
+.sparkline polyline { fill: none; stroke: var(--risk, var(--text-3)); stroke-width: 1.25; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.trend { color: var(--text-3); font-size: var(--fs-micro); font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.trend-up { color: #e0a49d; }
+.trend-down { color: #8fc9a9; }
+
+/* ---------- cross-pane focus ---------- */
+
+.zone-row.linked, .queue-row.linked { background: #13171d; box-shadow: inset -2px 0 0 var(--accent); }
+.responder-card { cursor: pointer; }
+.responder-card:hover { background: var(--panel); }
+.responder-card.linked { background: var(--accent-soft); box-shadow: inset 2px 0 0 var(--accent); }
+.responder-assignment { display: flex; align-items: center; gap: 6px; color: var(--text-2); font-size: var(--fs-sm); }
+
+/* ---------- pinned decision action ---------- */
+
+.block-action {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin: 0 calc(-1 * var(--sp-3)) calc(-1 * var(--sp-3));
+  padding: var(--sp-3);
+  border-top: 1px solid var(--line-2);
+  background: var(--panel);
+  box-shadow: 0 -14px 18px -14px #000;
+}
+
+/* ---------- map overlays ---------- */
+
+.map-zone.map-linked polygon { stroke-width: 2; stroke-dasharray: 5 3; }
+.map-link line { stroke: var(--accent); stroke-width: 1.4; stroke-dasharray: 4 4; opacity: .85; vector-effect: non-scaling-stroke; }
+.map-link text { fill: #9dc3ec; font-size: 10.5px; font-family: var(--mono); paint-order: stroke; stroke: #080a0d; stroke-width: 3px; stroke-linejoin: round; }
+
+.map-incident { pointer-events: none; }
+.map-incident .map-incident-dot { fill: var(--crit); }
+.map-incident .map-incident-pulse { fill: none; stroke: var(--crit); stroke-width: 1.25; opacity: 0; }
+.map-incident text { fill: #1a0d0c; font-size: 11px; font-weight: 800; }
+.map-incident .map-incident-dot { stroke: #080a0d; stroke-width: 2.5; paint-order: stroke; }
+.map-incident.map-urgent .map-incident-pulse { animation: ping 2s ease-out infinite; }
+.map-incident.map-focus .map-incident-dot { stroke: var(--text); stroke-width: 2; }
+@keyframes ping { 0% { opacity: .9; r: 8; } 100% { opacity: 0; r: 17; } }
+
+.map-pin { cursor: pointer; }
+.map-pin circle { fill: var(--raised); stroke: var(--line-3); stroke-width: 1.25; vector-effect: non-scaling-stroke; }
+.map-pin text { fill: var(--text-2); font-size: 8.5px; font-weight: 700; font-family: var(--mono); pointer-events: none; }
+.map-pin .map-pin-knockout { fill: #080a0d; stroke: none; }
+.map-pin .map-pin-name { fill: var(--text); font-size: 9.5px; font-weight: 600; font-family: inherit; paint-order: stroke; stroke: #080a0d; stroke-width: 3px; stroke-linejoin: round; }
+.map-pin-assigned circle { fill: var(--accent-soft); stroke: var(--accent); }
+.map-pin.map-focus circle { fill: var(--accent); stroke: var(--text); stroke-width: 2; }
+.map-pin.map-focus text { fill: var(--accent-ink); }
+.map-pin.map-focus .map-pin-name { fill: var(--text); }
+.map-pin:hover circle { stroke: var(--text-2); }
+
+.map-legend .legend-end { margin-left: auto; }
+.glyph { display: inline-flex; align-items: center; justify-content: center; width: 13px; height: 13px; border-radius: 50%; font-size: 9px; font-weight: 800; font-style: normal; }
+.glyph-incident { background: var(--crit); color: #1a0d0c; }
+.glyph-pin { background: var(--raised); border: 1px solid var(--line-3); }
+.glyph-pin.assigned { background: var(--accent-soft); border-color: var(--accent); }

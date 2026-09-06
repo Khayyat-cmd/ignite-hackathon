@@ -1,10 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiRequest } from '../api/client';
 import { useAction } from '../hooks/useAction';
-import { Badge, Notice, riskClass, time } from './Shared';
+import { useZoneHistory, trendOf } from '../hooks/useZoneHistory';
+import { Badge, Notice, Sparkline, TrendTag, playAlertTone, riskClass, time } from './Shared';
 import Copilot from './Copilot';
 import Messages from './Messages';
 import VenueMap from './VenueMap';
+
+const MUTE_KEY = 'aman.alertMuted';
+const FRESH_MS = 12000;
+
+function readMuted() {
+  if (typeof window === 'undefined') return false;
+  try { return window.localStorage.getItem(MUTE_KEY) === '1'; } catch { return false; }
+}
 
 function Metric({ label, value, sub, alert = false }) {
   return <div className={alert ? 'metric alert' : 'metric'}>
@@ -14,13 +23,13 @@ function Metric({ label, value, sub, alert = false }) {
   </div>;
 }
 
-function ZoneRow({ zone, stale, selected, onSelect }) {
+function ZoneRow({ zone, stale, selected, linked, trend, onSelect }) {
   const reading = zone.latest_reading;
   const density = Number(reading?.densityPerSquareMeter) || 0;
   const fill = zone.critical_density ? Math.min(1, density / Number(zone.critical_density)) : 0;
   return <button
     type="button"
-    className={`zone-row ${riskClass(zone.risk_level, stale)}${selected ? ' selected' : ''}`}
+    className={`zone-row ${riskClass(zone.risk_level, stale)}${selected ? ' selected' : ''}${linked ? ' linked' : ''}`}
     aria-pressed={selected}
     onClick={() => onSelect?.(zone.id)}
   >
@@ -32,15 +41,25 @@ function ZoneRow({ zone, stale, selected, onSelect }) {
       <span className="zone-density">{reading?.densityPerSquareMeter ?? '—'} /m²</span>
     </span>
     <span className="meter"><span style={{ width: `${Math.round(fill * 100)}%` }} /></span>
-    <span className="zone-thresholds">warn ≥ {zone.warning_density} · crit ≥ {zone.critical_density} · {zone.area_sqm} m²</span>
+    {trend
+      ? <span className="zone-trend"><Sparkline samples={trend.samples} /><TrendTag trend={trend} /></span>
+      : <span className="zone-thresholds">warn ≥ {zone.warning_density} · crit ≥ {zone.critical_density} · {zone.area_sqm} m²</span>}
   </button>;
 }
 
-function ResponderCard({ responder, index }) {
+function ResponderCard({ responder, index, assignment, linked, onSelect }) {
   const reachability = responder.signals?.reachability;
   const accuracy = responder.signals?.location?.accuracyMeters;
   const reachable = reachability?.status === 'unknown' ? 'Unknown' : reachability?.dataReachable ? 'Reachable' : 'Not reachable';
-  return <article className="responder-card">
+  const select = () => onSelect?.(responder.id, assignment);
+  return <article
+    className={`responder-card${linked ? ' linked' : ''}${assignment ? ' engaged' : ''}`}
+    role="button"
+    tabIndex={0}
+    aria-pressed={linked}
+    onClick={select}
+    onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); select(); } }}
+  >
     <div className="responder-top">
       <span className="responder-tag">R{String(index + 1).padStart(2, '0')}</span>
       <h3>{responder.name}</h3>
@@ -50,6 +69,9 @@ function ResponderCard({ responder, index }) {
       <i className={`dot ${reachability?.dataReachable ? 'normal' : reachability?.status === 'unknown' ? '' : 'critical'}`} />
       <span>Mobile data</span><b>{reachable}</b>
     </div>
+    {assignment && <p className="responder-assignment">
+      <i className="dot warning" />Assigned to {assignment.zoneName} · {String(assignment.status).replaceAll('_', ' ')}
+    </p>}
     <Notice error>{reachability?.error}</Notice>
     <div className="fact-tags" aria-label="Responder signal facts">
       {reachability?.checkedAt && <span>Updated {time(reachability.checkedAt)}</span>}
@@ -155,7 +177,10 @@ function IncidentDetail({ incident, refresh, responders, zones, stale, stopped, 
       <Notice error={Boolean(action.error)}>{action.error}</Notice>
     </div>
 
-    {active && ['detected', 'awaiting_approval'].includes(incident.status) && <div className="block">
+    {dispatched && <Messages incidentId={incident.id} active={active} />}
+    {incident.status === 'resolved' && <Messages incidentId={incident.id} active={false} />}
+
+    {active && ['detected', 'awaiting_approval'].includes(incident.status) && <div className="block block-action">
       <span className="label">Operator approval</span>
       {incident.responder_id ? <>
         <label className="field">
@@ -181,7 +206,7 @@ function IncidentDetail({ incident, refresh, responders, zones, stale, stopped, 
       <button type="button" className="btn btn-quiet" disabled={action.busy || stale} onClick={() => mutate('recommend')}>Refresh recommendation</button>
     </div>}
 
-    {active && incident.status === 'acknowledged' && <div className="block">
+    {active && incident.status === 'acknowledged' && <div className="block block-action">
       <span className="label">Resolution</span>
       {zone?.risk_level === 'critical' && <p className="hint">This zone is still Critical. The 15-second confirmation starts once its reading becomes Normal or Warning.</p>}
       {zone?.risk_level === 'unknown' && <p className="hint">Location evidence is uncertain. Wait for a live Normal or Warning reading before resolving.</p>}
@@ -193,86 +218,212 @@ function IncidentDetail({ incident, refresh, responders, zones, stale, stopped, 
         {resolution?.ready ? 'Resolve incident' : 'Waiting for safe readings…'}
       </button>
     </div>}
+  </div>;
+}
 
-    {dispatched && <Messages incidentId={incident.id} active={active} />}
-    {incident.status === 'resolved' && <Messages incidentId={incident.id} active={false} />}
+function AttentionBar({ items, zoneName, muted, onReview, onToggleMute }) {
+  if (!items.length) return null;
+  const oldest = items[items.length - 1];
+  return <div className="attentionbar" role="alert">
+    <i className="dot critical" />
+    <strong>{items.length} incident{items.length === 1 ? '' : 's'} awaiting dispatch approval</strong>
+    <span className="attention-zones">{items.map((item) => zoneName(item.zone_id)).join(' · ')}</span>
+    <button type="button" className="btn btn-primary" onClick={() => onReview(oldest)}>Review {zoneName(oldest.zone_id)}</button>
+    <button type="button" className="btn btn-quiet" aria-pressed={muted} onClick={onToggleMute}>{muted ? 'Alert sound off' : 'Alert sound on'}</button>
   </div>;
 }
 
 export default function OperatorPanel({ data, refresh }) {
   const [selectedId, setSelectedId] = useState('');
-  const [zoneId, setZoneId] = useState(null);
+  const [filterZoneId, setFilterZoneId] = useState(null);
+  const [pinnedResponderId, setPinnedResponderId] = useState(null);
   const [copilotProposal, setCopilotProposal] = useState(null);
   const [decisionView, setDecisionView] = useState('incidents');
+  const [muted, setMuted] = useState(readMuted);
+  const [freshIds, setFreshIds] = useState({});
+
   const incidents = data.incidents || [];
   const zoneName = (id) => data.zones.find((z) => z.id === id)?.name || 'Unknown zone';
   const quality = data.quality || {};
   const activeIncidents = incidents.filter((i) => i.active_zone_id && i.status !== 'resolved');
-  const awaiting = activeIncidents.filter((i) => i.status === 'awaiting_approval').length;
-  const activeZone = data.zones.find((z) => z.id === zoneId);
-  const visibleIncidents = activeZone ? incidents.filter((i) => i.zone_id === zoneId) : incidents;
+  const awaitingIncidents = activeIncidents.filter((i) => i.status === 'awaiting_approval');
+  const awaiting = awaitingIncidents.length;
+  const filterZone = data.zones.find((z) => z.id === filterZoneId);
+  const visibleIncidents = filterZone ? incidents.filter((i) => i.zone_id === filterZoneId) : incidents;
   const focused = visibleIncidents.find((i) => i.id === selectedId) || visibleIncidents.find((i) => i.active_zone_id) || visibleIncidents[0];
   const availableResponders = data.responders.filter((r) => r.available).length;
   const uncertain = (quality.ambiguous || 0) + (quality.stale || 0) + (quality.missing || 0);
-  const selectZone = (id) => setZoneId(zoneId === id ? null : id);
+
+  // One focus, three panes. The incident under review decides which zone the
+  // map and the left rail highlight, and which responder the map links to.
+  const linkedZoneId = focused?.zone_id ?? filterZoneId ?? null;
+  const linkedResponderId = pinnedResponderId
+    || focused?.assigned_responder_id
+    || focused?.decision?.advice?.recommendedResponderId
+    || focused?.responder_id
+    || null;
+  const assignments = useMemo(() => {
+    const map = {};
+    for (const incident of incidents) {
+      const id = incident.assigned_responder_id;
+      if (id && incident.active_zone_id && incident.status !== 'resolved') {
+        map[id] = { status: incident.status, zoneName: zoneName(incident.zone_id), incidentId: incident.id };
+      }
+    }
+    return map;
+  }, [incidents, data.zones]);
+
+  const history = useZoneHistory(data.zones, data.revision, data.observedAt);
+
+  // Flag arrivals so a new row is visible on a wall display, and sound a cue
+  // when the number of decisions waiting on the operator goes up.
+  const seen = useRef(null);
+  const timers = useRef([]);
+  const incidentKey = incidents.map((incident) => incident.id).join(',');
+  useEffect(() => () => timers.current.forEach(clearTimeout), []);
+  useEffect(() => {
+    const ids = incidentKey ? incidentKey.split(',') : [];
+    if (seen.current === null) { seen.current = new Set(ids); return; }
+    const added = ids.filter((id) => !seen.current.has(id));
+    ids.forEach((id) => seen.current.add(id));
+    if (!added.length) return;
+    setFreshIds((current) => ({ ...current, ...Object.fromEntries(added.map((id) => [id, true])) }));
+    timers.current.push(setTimeout(() => setFreshIds((current) => {
+      const next = { ...current };
+      added.forEach((id) => delete next[id]);
+      return next;
+    }), FRESH_MS));
+  }, [incidentKey]);
+
+  const mutedRef = useRef(muted);
+  mutedRef.current = muted;
+  const lastAwaiting = useRef(null);
+  useEffect(() => {
+    if (lastAwaiting.current !== null && awaiting > lastAwaiting.current && !mutedRef.current) playAlertTone();
+    lastAwaiting.current = awaiting;
+  }, [awaiting]);
+
+  function toggleMute() {
+    setMuted((current) => {
+      const next = !current;
+      try { window.localStorage.setItem(MUTE_KEY, next ? '1' : '0'); } catch { /* preference only */ }
+      return next;
+    });
+  }
+
+  function reviewIncident(incident) {
+    setFilterZoneId(null);
+    setSelectedId(incident.id);
+    setPinnedResponderId(null);
+    setDecisionView('incidents');
+  }
+
+  function selectZone(id) {
+    const next = filterZoneId === id ? null : id;
+    setFilterZoneId(next);
+    setPinnedResponderId(null);
+    if (next) {
+      const inZone = incidents.filter((incident) => incident.zone_id === next);
+      const target = inZone.find((incident) => incident.active_zone_id) || inZone[0];
+      if (target) { setSelectedId(target.id); setDecisionView('incidents'); }
+    }
+  }
+
+  function selectResponder(id, assignment) {
+    setPinnedResponderId((current) => (current === id ? null : id));
+    if (assignment?.incidentId) {
+      setFilterZoneId(null);
+      setSelectedId(assignment.incidentId);
+      setDecisionView('incidents');
+    }
+  }
+
   const reviewSuggestion = (suggestion) => {
-    setZoneId(null);
+    setFilterZoneId(null);
     setSelectedId(suggestion.incidentId);
     setCopilotProposal(suggestion);
     setDecisionView('incidents');
   };
 
-  return <div className="workspace">
-    <aside className="rail">
-      <section className="situation" aria-label="Event summary">
-        <Metric label="Located attendees" value={(quality.located || 0).toLocaleString()} sub={`of ${data.attendeeCount.toLocaleString()} simulated attendees`} />
-        <Metric label="Active incidents" value={activeIncidents.length.toString().padStart(2, '0')} sub={`${awaiting} awaiting dispatch approval`} alert={activeIncidents.length > 0} />
-        <Metric label="Responders available" value={<>{availableResponders}<em> / {data.responders.length}</em></>} sub={`${data.responders.filter((r) => r.signals?.reachability?.dataReachable).length} data reachable`} />
-        <Metric label="Uncertain locations" value={uncertain.toLocaleString()} sub={`${(quality.outside || 0).toLocaleString()} confirmed outside monitored zones`} />
-      </section>
-      <div className="pane-head">Zone conditions<span className="meta">1 device = 1 person</span></div>
-      <div className="scroll">
-        {data.zones.map((zone) => <ZoneRow key={zone.id} zone={zone} stale={data.stale} selected={zoneId === zone.id} onSelect={selectZone} />)}
-      </div>
-    </aside>
+  return <>
+    <AttentionBar items={awaitingIncidents} zoneName={zoneName} muted={muted} onReview={reviewIncident} onToggleMute={toggleMute} />
+    <div className="workspace">
+      <aside className="rail">
+        <section className="situation" aria-label="Event summary">
+          <Metric label="Located attendees" value={(quality.located || 0).toLocaleString()} sub={`of ${data.attendeeCount.toLocaleString()} simulated attendees`} />
+          <Metric label="Active incidents" value={activeIncidents.length.toString().padStart(2, '0')} sub={`${awaiting} awaiting dispatch approval`} alert={activeIncidents.length > 0} />
+          <Metric label="Responders available" value={<>{availableResponders}<em> / {data.responders.length}</em></>} sub={`${data.responders.filter((r) => r.signals?.reachability?.dataReachable).length} data reachable`} />
+          <Metric label="Uncertain locations" value={uncertain.toLocaleString()} sub={`${(quality.outside || 0).toLocaleString()} confirmed outside monitored zones`} />
+        </section>
+        <div className="pane-head">Zone conditions<span className="meta">1 device = 1 person</span></div>
+        <div className="scroll">
+          {data.zones.map((zone) => <ZoneRow
+            key={zone.id}
+            zone={zone}
+            stale={data.stale}
+            selected={filterZoneId === zone.id}
+            linked={filterZoneId !== zone.id && linkedZoneId === zone.id}
+            trend={data.stale ? null : trendOf(history[zone.id])}
+            onSelect={selectZone}
+          />)}
+        </div>
+      </aside>
 
-    <section className="stage">
-      <VenueMap zones={data.zones} stale={data.stale} selectedId={zoneId} onSelect={selectZone} />
-      <section className="responders">
-        <div className="pane-head">Response team<span className="meta">{availableResponders} of {data.responders.length} available</span></div>
-        {data.responders.length
-          ? <div className="responder-strip">{data.responders.map((responder, index) => <ResponderCard key={responder.id} responder={responder} index={index} />)}</div>
-          : <p className="responder-empty">No responders are registered for this event.</p>}
+      <section className="stage">
+        <VenueMap
+          zones={data.zones}
+          stale={data.stale}
+          selectedId={filterZoneId}
+          onSelect={selectZone}
+          responders={data.responders}
+          incidents={incidents}
+          focusedIncidentId={focused?.id}
+          focusedResponderId={linkedResponderId}
+          linkedZoneId={filterZoneId === linkedZoneId ? null : linkedZoneId}
+          onSelectResponder={(id) => selectResponder(id, assignments[id])}
+        />
+        <section className="responders">
+          <div className="pane-head">Response team<span className="meta">{availableResponders} of {data.responders.length} available</span></div>
+          {data.responders.length
+            ? <div className="responder-strip">{data.responders.map((responder, index) => <ResponderCard
+              key={responder.id}
+              responder={responder}
+              index={index}
+              assignment={assignments[responder.id]}
+              linked={linkedResponderId === responder.id}
+              onSelect={selectResponder}
+            />)}</div>
+            : <p className="responder-empty">No responders are registered for this event.</p>}
+        </section>
       </section>
-    </section>
 
-    <aside className="rail decision-rail">
-      <nav className="decision-tabs" aria-label="Decision workspace">
-        <button type="button" className={decisionView === 'incidents' ? 'active' : ''} aria-pressed={decisionView === 'incidents'} onClick={() => setDecisionView('incidents')}>
-          <span>Incidents</span><span className={awaiting ? 'count-chip alert' : 'count-chip'}>{visibleIncidents.length}</span>
-        </button>
-        <button type="button" className={decisionView === 'copilot' ? 'active' : ''} aria-pressed={decisionView === 'copilot'} onClick={() => setDecisionView('copilot')}>
-          <span>Assistant</span>
-        </button>
-      </nav>
-      <div className="decision-view" hidden={decisionView !== 'copilot'}>
-        <Copilot data={data} onReviewSuggestion={reviewSuggestion} />
-      </div>
-      <div className="decision-view" hidden={decisionView !== 'incidents'}>
+      <aside className="rail decision-rail">
+        <nav className="decision-tabs" aria-label="Decision workspace">
+          <button type="button" className={decisionView === 'incidents' ? 'active' : ''} aria-pressed={decisionView === 'incidents'} onClick={() => setDecisionView('incidents')}>
+            <span>Incidents</span><span className={awaiting ? 'count-chip alert' : 'count-chip'}>{visibleIncidents.length}</span>
+          </button>
+          <button type="button" className={decisionView === 'copilot' ? 'active' : ''} aria-pressed={decisionView === 'copilot'} onClick={() => setDecisionView('copilot')}>
+            <span>Assistant</span>
+          </button>
+        </nav>
+        <div className="decision-view" hidden={decisionView !== 'copilot'}>
+          <Copilot data={data} onReviewSuggestion={reviewSuggestion} />
+        </div>
+        <div className="decision-view" hidden={decisionView !== 'incidents'}>
           <div className="pane-head">
             Response coordination
             <span className="meta">{awaiting} awaiting approval</span>
           </div>
-          {activeZone && <button type="button" className="filter-chip" onClick={() => setZoneId(null)}>Filtered to {activeZone.name} · clear ✕</button>}
+          {filterZone && <button type="button" className="filter-chip" onClick={() => selectZone(filterZone.id)}>Filtered to {filterZone.name} · clear ✕</button>}
           {visibleIncidents.length > 0 && <div className="queue">
             {visibleIncidents.map((incident) => {
               const zone = data.zones.find((z) => z.id === incident.zone_id);
               return <button
                 type="button"
                 key={incident.id}
-                className={`queue-row ${riskClass(zone?.risk_level, data.stale)}${focused?.id === incident.id ? ' selected' : ''}`}
+                className={`queue-row ${riskClass(zone?.risk_level, data.stale)}${focused?.id === incident.id ? ' selected' : ''}${freshIds[incident.id] ? ' fresh' : ''}`}
                 aria-pressed={focused?.id === incident.id}
-                onClick={() => setSelectedId(incident.id)}
+                onClick={() => { setSelectedId(incident.id); setPinnedResponderId(null); }}
               >
                 <strong>{zoneName(incident.zone_id)}</strong>
                 <Badge value={incident.status} />
@@ -289,7 +440,8 @@ export default function OperatorPanel({ data, refresh }) {
                 <p>Monitoring continues. New incidents appear here when a zone requires attention.</p>
               </div>}
           </div>
-      </div>
-    </aside>
-  </div>;
+        </div>
+      </aside>
+    </div>
+  </>;
 }
