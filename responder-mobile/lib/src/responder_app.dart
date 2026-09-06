@@ -365,7 +365,7 @@ class _MissionHomeState extends State<MissionHome> {
                       mission.id,
                       widget.responder.id,
                       'en_route',
-                      'En route to ${mission.zoneName}.',
+                      'Heading to ${mission.zoneName}.',
                     ),
                   ),
                   onScene: () => _act(
@@ -617,7 +617,7 @@ class MissionCard extends StatelessWidget {
           OutlinedButton.icon(
             onPressed: busy ? null : onEnRoute,
             icon: const Icon(Icons.directions_run_rounded),
-            label: const Text('REPORT EN ROUTE'),
+            label: const Text('HEADING THERE'),
             style: OutlinedButton.styleFrom(
               minimumSize: const Size.fromHeight(48),
               foregroundColor: Colors.white,

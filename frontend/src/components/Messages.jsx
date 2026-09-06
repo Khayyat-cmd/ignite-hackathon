@@ -4,6 +4,11 @@ import { usePolling } from '../hooks/usePolling';
 import { useAction } from '../hooks/useAction';
 import { Notice, time } from './Shared';
 
+function messageLabel(kind) {
+  const labels = { en_route: 'Heading there', on_scene: 'On scene' };
+  return labels[kind] || kind.replaceAll('_', ' ');
+}
+
 export default function Messages({ incidentId, responderId, mobile = false, active = true, revision = 0 }) {
   const load = useCallback(async (signal) => {
     // Read all pages, including long conversations, using the backend's cursor.
@@ -44,7 +49,7 @@ export default function Messages({ incidentId, responderId, mobile = false, acti
     <div className="messages" aria-live="polite">
       {!feed.data?.length && <p className="hint">No messages yet.</p>}
       {feed.data?.map((message) => <article className={message.kind === 'instruction' ? 'bubble instruction' : 'bubble'} key={message.id}>
-        <small>{message.kind.replaceAll('_', ' ')} · {time(message.created_at)}</small>
+        <small>{messageLabel(message.kind)} · {time(message.created_at)}</small>
         <p>{message.body}</p>
       </article>)}
     </div>

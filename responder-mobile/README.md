@@ -1,6 +1,6 @@
 # AMAN Responder
 
-Flutter field client for the AMAN hackathon rehearsal. A responder selects a local demo call sign, receives assigned missions, acknowledges dispatch, reports en route and on-scene progress, and exchanges updates with the control room.
+Flutter field client for the AMAN hackathon rehearsal. A responder selects a local profile, receives assigned missions, acknowledges dispatch, reports that they are heading there or on scene, and exchanges updates with the control room.
 
 ## Run
 
