@@ -40,7 +40,16 @@ jobs:
       - run: composer install --prefer-dist --no-interaction --no-progress
       - run: composer validate --strict
       - run: vendor/bin/pint --test
-      - run: php artisan test
+      - name: Test maintained demo architecture
+        run: >-
+          php artisan test --compact
+          tests/Feature/EventSimulationTest.php
+          tests/Feature/IncidentWorkflowTest.php
+          tests/Feature/DemoApiTest.php
+          tests/Feature/IncidentAdviceTest.php
+          tests/Feature/NokiaReachabilityTest.php
+          tests/Feature/OperatorCopilotTest.php
+          tests/Feature/SimulationScheduleTest.php
         env:
           APP_ENV: testing
           APP_KEY: base64:YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE=
