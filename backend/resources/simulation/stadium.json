@@ -26,9 +26,9 @@
   "recovery": {"seconds": 80, "x": 180, "y": 0},
   "southRecovery": {"seconds": 55},
   "responders": [
-    {"name":"East Marshal", "x":-25, "y":0},
-    {"name":"Concourse Marshal", "x":35, "y":0},
-    {"name":"West Marshal", "x":110, "y":0},
-    {"name":"Reserve Marshal", "x":65, "y":0}
+    {"name":"Baraa El Baba", "x":-25, "y":0},
+    {"name":"Mohammed Khayyat", "x":35, "y":0},
+    {"name":"Hussien Ghaddar", "x":110, "y":0},
+    {"name":"Siraj Alaeli", "x":65, "y":0}
   ]
 }

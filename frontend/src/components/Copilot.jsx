@@ -37,7 +37,6 @@ export default function Copilot({ data, onReviewSuggestion }) {
         content: response.answer,
         suggestion: response.suggestion,
         followUpPrompt: response.followUpPrompt,
-        model: response.model,
       }]);
     });
   }
@@ -45,7 +44,6 @@ export default function Copilot({ data, onReviewSuggestion }) {
   return <section className="copilot" aria-label="AMAN Copilot">
     <div className="copilot-head">
       <span className="label">AMAN Copilot</span>
-      <Badge value="Luna" />
       <span className="meta">Advisory only</span>
     </div>
     {messages.length === 0 && <>
@@ -61,7 +59,7 @@ export default function Copilot({ data, onReviewSuggestion }) {
     </>}
     {messages.length > 0 && <div className="copilot-messages" aria-live="polite">
       {messages.map((message, index) => <article className={`copilot-message ${message.role}`} key={`${message.role}-${index}`}>
-        <small>{message.role === 'user' ? 'Operator' : message.model || 'AMAN Copilot'}</small>
+        <small>{message.role === 'user' ? 'Operator' : 'AMAN Copilot'}</small>
         <p>{message.content}</p>
         {message.suggestion && <div className="copilot-suggestion compact">
           <strong>Human approval required</strong>
@@ -70,7 +68,7 @@ export default function Copilot({ data, onReviewSuggestion }) {
         </div>}
         {message.followUpPrompt && <button type="button" className="copilot-followup" onClick={() => ask(message.followUpPrompt)}>{message.followUpPrompt}</button>}
       </article>)}
-      {action.busy && <p className="hint">Luna is reviewing the latest situation…</p>}
+      {action.busy && <p className="hint">Reviewing the latest situation…</p>}
     </div>}
     <form className="copilot-compose" onSubmit={(event) => { event.preventDefault(); ask(); }}>
       <input aria-label="Ask AMAN Copilot" value={question} maxLength={1000} placeholder="Ask about the live situation…" disabled={action.busy} onChange={(event) => setQuestion(event.target.value)} />

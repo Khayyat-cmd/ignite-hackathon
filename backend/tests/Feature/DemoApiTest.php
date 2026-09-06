@@ -47,7 +47,8 @@ class DemoApiTest extends TestCase
         $incident = Incident::where('venue_event_id', $run->venue_event_id)->firstOrFail();
         $this->getJson('/api/v1/demo/responders')->assertOk()
             ->assertJsonCount(4, 'data')
-            ->assertJsonStructure(['data' => [['id', 'name', 'role', 'available']]])
+            ->assertJsonStructure(['data' => [['id', 'name', 'role', 'available', 'event' => ['id', 'name', 'number', 'status']]]])
+            ->assertJsonPath('data.0.event.number', $run->id)
             ->assertJsonMissingPath('data.0.phone_number');
         $this->postJson("/api/v1/demo/incidents/{$incident->id}/approve", ['routeReviewed' => true])->assertOk();
         $incident->refresh();

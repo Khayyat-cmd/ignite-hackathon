@@ -51,7 +51,7 @@ describe('Command center', () => {
           summary: 'Crowd density is rising at the east entrance.', urgency: 'high', confidence: 'medium',
           proposedAction: 'Send the nearest reachable marshal and open the alternate lane.',
           recommendedResponderId: 'r1', evidence: ['Critical density reading', 'Responder is data reachable'],
-          uncertainties: ['Camera confirmation is unavailable'], model: 'gpt-5.6-luna', generatedAt: '2026-09-05T12:00:00Z',
+          uncertainties: ['Camera confirmation is unavailable'], model: 'internal-model-name', generatedAt: '2026-09-05T12:00:00Z',
         },
       },
     };
@@ -60,6 +60,7 @@ describe('Command center', () => {
     expect(html).toContain('Crowd density is rising');
     expect(html).toContain('Accept advice &amp; dispatch');
     expect(html).toContain('Operator approval required');
+    expect(html).not.toContain('internal-model-name');
   });
   it('projects boundaries within the view and handles missing geometry', () => {
     expect(projectZones([])).toEqual([]);

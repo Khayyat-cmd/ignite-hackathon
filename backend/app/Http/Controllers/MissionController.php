@@ -15,11 +15,35 @@ class MissionController extends Controller
 {
     public function responders(DemoWorkspace $workspace): array
     {
-        return ['data' => Responder::query()
+        $responders = Responder::query()
             ->where('organization_id', $workspace->operator()->organization_id)
             ->where('authorized', true)
-            ->orderBy('name')
-            ->get(['id', 'name', 'role', 'available'])];
+            ->get(['id', 'venue_event_id', 'name', 'role', 'available']);
+        $runs = SimulationRun::query()
+            ->whereIn('venue_event_id', $responders->pluck('venue_event_id'))
+            ->with('venueEvent:id,name,status')
+            ->orderByDesc('id')
+            ->get()
+            ->keyBy('venue_event_id');
+
+        return ['data' => $responders
+            ->sortByDesc(fn (Responder $responder): int => $runs->get($responder->venue_event_id)?->id ?? 0)
+            ->map(function (Responder $responder) use ($runs): array {
+                $run = $runs->get($responder->venue_event_id);
+
+                return [
+                    'id' => $responder->id,
+                    'name' => $responder->name,
+                    'role' => $responder->role,
+                    'available' => $responder->available,
+                    'event' => [
+                        'id' => $responder->venue_event_id,
+                        'name' => $run?->venueEvent?->name ?? 'Rehearsal event',
+                        'number' => $run?->id,
+                        'status' => $run?->status ?? 'stopped',
+                    ],
+                ];
+            })->values()];
     }
 
     public function index(Request $request, DemoWorkspace $workspace): array

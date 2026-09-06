@@ -21,6 +21,20 @@ class FakeGateway implements ResponderGateway {
       name: 'East Marshal',
       role: 'crowd_marshal',
       available: true,
+      eventId: 'event-1',
+      eventName: 'Stadium rehearsal',
+      eventNumber: 3,
+      eventStatus: 'running',
+    ),
+    Responder(
+      id: 'r2',
+      name: 'East Marshal',
+      role: 'crowd_marshal',
+      available: true,
+      eventId: 'event-2',
+      eventName: 'Older rehearsal',
+      eventNumber: 2,
+      eventStatus: 'stopped',
     ),
   ];
   @override
@@ -39,6 +53,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Select your call sign'), findsOneWidget);
+    expect(find.text('Event #3 · Stadium rehearsal · RUNNING'), findsOneWidget);
     expect(find.text('East Marshal'), findsOneWidget);
     expect(find.textContaining('REHEARSAL'), findsOneWidget);
     expect(find.textContaining('counter'), findsNothing);

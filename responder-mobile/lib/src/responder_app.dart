@@ -72,6 +72,7 @@ class _ResponderEntryState extends State<ResponderEntry> {
   static const preferenceKey = 'demo_responder_id';
   List<Responder>? _responders;
   String? _selectedId;
+  String? _selectedEventId;
   String? _error;
 
   @override
@@ -90,6 +91,15 @@ class _ResponderEntryState extends State<ResponderEntry> {
       setState(() {
         _responders = responders;
         _selectedId = responders.any((item) => item.id == saved) ? saved : null;
+        _selectedEventId = responders
+            .where((item) => item.id == saved)
+            .firstOrNull
+            ?.eventId;
+        _selectedEventId ??= responders
+            .where((item) => item.eventStatus == 'running')
+            .firstOrNull
+            ?.eventId;
+        _selectedEventId ??= responders.firstOrNull?.eventId;
         _error = null;
       });
     } catch (error) {
@@ -107,6 +117,13 @@ class _ResponderEntryState extends State<ResponderEntry> {
 
   @override
   Widget build(BuildContext context) {
+    final events = <String, Responder>{
+      for (final responder in _responders ?? const <Responder>[])
+        responder.eventId: responder,
+    }.values.toList();
+    final visibleResponders = (_responders ?? const <Responder>[]).where(
+      (item) => item.eventId == _selectedEventId,
+    );
     final selected = _responders
         ?.where((item) => item.id == _selectedId)
         .firstOrNull;
@@ -132,14 +149,43 @@ class _ResponderEntryState extends State<ResponderEntry> {
               ),
               const SizedBox(height: 10),
               const Text(
-                'This rehearsal uses local demo identities. Choose the responder assigned to your device.',
+                'Choose your rehearsal event, then select the responder assigned to this device.',
                 style: TextStyle(color: muted),
               ),
               const SizedBox(height: 28),
               if (_responders == null && _error == null)
                 const Center(child: CircularProgressIndicator()),
               if (_error != null) ErrorCard(onRetry: _load),
-              ...?_responders?.map(
+              if (events.isNotEmpty) ...[
+                DropdownButtonFormField<String>(
+                  initialValue: _selectedEventId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Rehearsal event',
+                    prefixIcon: Icon(Icons.event_outlined),
+                  ),
+                  items: events
+                      .map(
+                        (event) => DropdownMenuItem(
+                          value: event.eventId,
+                          child: Text(
+                            '${event.eventLabel} · ${event.eventStatus.toUpperCase()}',
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) =>
+                      setState(() => _selectedEventId = value),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'RESPONDER',
+                  style: Theme.of(context).textTheme.labelSmall
+                      ?.copyWith(color: muted, letterSpacing: 1.3),
+                ),
+                const SizedBox(height: 10),
+              ],
+              ...visibleResponders.map(
                 (responder) => Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: ResponderTile(

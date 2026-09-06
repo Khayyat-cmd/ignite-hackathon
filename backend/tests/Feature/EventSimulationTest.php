@@ -70,7 +70,7 @@ class EventSimulationTest extends TestCase
         $this->assertSame(IncidentStatus::AwaitingApproval, $incident->status);
         $this->assertSame('critical', $eastZone->risk_level);
         $this->assertNotSame('critical', $southZone->risk_level);
-        $east = Responder::where('venue_event_id', $run->venue_event_id)->where('name', 'East Marshal')->firstOrFail();
+        $east = Responder::where('venue_event_id', $run->venue_event_id)->where('name', 'Baraa El Baba')->firstOrFail();
         $this->assertSame('High', $east->signals['congestion'][0]['congestionLevel']);
 
         $this->postJson("/api/v1/incidents/{$incident->id}/approve", ['routeReviewed' => true])->assertOk();

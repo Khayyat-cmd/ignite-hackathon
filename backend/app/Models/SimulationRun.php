@@ -5,6 +5,7 @@ namespace App\Models;
 use Database\Factories\SimulationRunFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class SimulationRun extends Model
 {
@@ -16,5 +17,10 @@ class SimulationRun extends Model
     protected function casts(): array
     {
         return ['definition' => 'array', 'snapshot' => 'array', 'interventions' => 'array', 'last_tick_at' => 'immutable_datetime'];
+    }
+
+    public function venueEvent(): BelongsTo
+    {
+        return $this->belongsTo(VenueEvent::class);
     }
 }

@@ -4,19 +4,37 @@ class Responder {
     required this.name,
     required this.role,
     required this.available,
+    required this.eventId,
+    required this.eventName,
+    required this.eventNumber,
+    required this.eventStatus,
   });
 
   final String id;
   final String name;
   final String role;
   final bool available;
+  final String eventId;
+  final String eventName;
+  final int? eventNumber;
+  final String eventStatus;
 
-  factory Responder.fromJson(Map<String, dynamic> json) => Responder(
-    id: json['id'] as String,
-    name: json['name'] as String,
-    role: (json['role'] as String?) ?? 'responder',
-    available: json['available'] as bool? ?? false,
-  );
+  String get eventLabel =>
+      eventNumber == null ? eventName : 'Event #$eventNumber · $eventName';
+
+  factory Responder.fromJson(Map<String, dynamic> json) {
+    final event = json['event'] as Map<String, dynamic>? ?? const {};
+    return Responder(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      role: (json['role'] as String?) ?? 'responder',
+      available: json['available'] as bool? ?? false,
+      eventId: (event['id'] as String?) ?? 'unknown',
+      eventName: (event['name'] as String?) ?? 'Rehearsal event',
+      eventNumber: event['number'] as int?,
+      eventStatus: (event['status'] as String?) ?? 'stopped',
+    );
+  }
 }
 
 class Mission {

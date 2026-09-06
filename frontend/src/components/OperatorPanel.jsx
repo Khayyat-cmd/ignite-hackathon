@@ -117,7 +117,7 @@ function Brief({ decision, busy, retry }) {
       <summary>Uncertainty to review</summary>
       <ul className="evidence">{advice.uncertainties.map((item) => <li key={item}>{item}</li>)}</ul>
     </details>}
-    <span className="brief-meta">{advice.model} · generated {time(advice.generatedAt)}<br />Operator approval required</span>
+    <span className="brief-meta">AI-assisted · generated {time(advice.generatedAt)}<br />Operator approval required</span>
   </section>;
 }
 
