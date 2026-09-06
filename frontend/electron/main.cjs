@@ -8,9 +8,9 @@ function createWindow() {
     title: 'AMAN Command Center',
     width: 1500,
     height: 960,
-    minWidth: 1100,
-    minHeight: 720,
-    backgroundColor: '#090f18',
+    minWidth: 1180,
+    minHeight: 700,
+    backgroundColor: '#0a0c0f',
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),

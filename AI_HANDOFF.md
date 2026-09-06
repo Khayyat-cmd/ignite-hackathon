@@ -38,7 +38,9 @@ The user's real `OPENAI_API_KEY` is in `backend/.env`. A minimal live request re
 ### Electron admin app
 
 - Secure Electron shell with context isolation, renderer sandboxing, Node integration disabled, a narrow preload API, and external navigation controls.
-- Professional dark control-room interface with simulation controls, crowd status, zone schematic, responder status, and incident coordination.
+- Fixed three-pane control-room shell that fills the window and never scrolls the page: a left rail with the situation summary and zone conditions, a centre stage with the zone schematic and the response team, and a right rail with the incident queue and the selected incident.
+- Simulation transport (start/resume, pause, stop, reset) and event selection live in the top bar; the rehearsal-data disclaimer, sample time, revision, and backend reachability live in a single status strip.
+- Neutral graphite chrome with a single blue interaction accent, so green/amber/red are only ever used for risk and status. Type, spacing, and radii follow one token scale; numeric readouts are tabular.
 - Structured response brief with urgency, confidence, evidence, uncertainty, proposed action, and model metadata.
 - Explicit operator responder selection and approval. The old React responder panel was removed.
 - Linux AppImage packaging through `npm run build:desktop`.
@@ -118,6 +120,8 @@ The focused backend tests, 9 renderer tests, Flutter analysis, Flutter widget te
 - `backend/app/Services/Ai/OpenAiIncidentAdvisor.php`: structured model call and validation.
 - `backend/app/Jobs/GenerateIncidentAdvice.php`: asynchronous advice lifecycle.
 - `frontend/electron/main.cjs`: Electron security boundary.
+- `frontend/src/App.jsx`: window shell, top bar, status strip, and simulation transport.
 - `frontend/src/components/OperatorPanel.jsx`: operator incident and advisor experience.
+- `frontend/src/styles.css`: the console's colour, type, and spacing tokens.
 - `responder-mobile/lib/src/responder_app.dart`: responder workflow UI.
 - `responder-mobile/lib/src/api.dart`: mobile demo API client.

@@ -3,6 +3,7 @@
 use App\Http\Controllers\IncidentController;
 use App\Http\Controllers\MissionCommunicationController;
 use App\Http\Controllers\MissionController;
+use App\Http\Controllers\OperatorCopilotController;
 use App\Http\Controllers\SimulationController;
 use Illuminate\Support\Facades\Route;
 
@@ -12,6 +13,7 @@ Route::prefix('v1/demo')->middleware('throttle:api')->group(function () {
     Route::post('simulations/{run}/location-retrieval/v0/retrieve', [SimulationController::class, 'retrieve']);
     Route::post('simulations', [SimulationController::class, 'store']);
     Route::post('simulations/{run}/control', [SimulationController::class, 'control']);
+    Route::post('simulations/{run}/copilot', [OperatorCopilotController::class, 'store']);
     Route::post('incidents/{incident}/recommend', [IncidentController::class, 'recommend']);
     Route::post('incidents/{incident}/advice', [IncidentController::class, 'advise']);
     Route::post('incidents/{incident}/approve', [IncidentController::class, 'approve']);

@@ -38,21 +38,31 @@ export default function Messages({ incidentId, responderId, mobile = false, acti
       setBody(''); setSent(true); feed.refresh();
     });
   }
-  return <section className="conversation">
-    <h3>{mobile ? 'Command center messages' : 'Instructions & field reports'}</h3>
+  return <section className="block conversation">
+    <span className="label">{mobile ? 'Command center messages' : 'Instructions & field reports'}</span>
     <Notice error>{feed.error}</Notice>
     <div className="messages" aria-live="polite">
-      {!feed.data?.length && <p className="muted">No messages yet.</p>}
+      {!feed.data?.length && <p className="hint">No messages yet.</p>}
       {feed.data?.map((message) => <article className={message.kind === 'instruction' ? 'bubble instruction' : 'bubble'} key={message.id}>
-        <small>{message.kind.replaceAll('_', ' ')} · {time(message.created_at)}</small><p>{message.body}</p>
+        <small>{message.kind.replaceAll('_', ' ')} · {time(message.created_at)}</small>
+        <p>{message.body}</p>
       </article>)}
     </div>
-    <form onSubmit={send}>
-      <label><span>{mobile ? 'Send a reply' : 'Send an instruction'}</span>
-        <textarea value={body} maxLength={1000} required disabled={!active} onChange={(e) => { setBody(e.target.value); setSent(false); }} placeholder={mobile ? 'Update the operator…' : 'Tell the responder what to do…'} /></label>
+    <form className="compose" onSubmit={send}>
+      <textarea
+        value={body}
+        maxLength={1000}
+        required
+        disabled={!active}
+        aria-label={mobile ? 'Send a reply' : 'Send an instruction'}
+        onChange={(e) => { setBody(e.target.value); setSent(false); }}
+        placeholder={mobile ? 'Update the operator…' : 'Tell the responder what to do…'}
+      />
       <Notice error>{action.error}</Notice>
-      {sent && <small role="status">Message saved. The other app will receive it on its next refresh.</small>}
-      <button className="primary" disabled={action.busy || !active || !body.trim()}>{action.busy ? 'Sending…' : 'Send'}</button>
+      <div className="compose-foot">
+        <small className="hint" role="status">{sent ? 'Saved. The other app receives it on its next refresh.' : `${body.length}/1000`}</small>
+        <button className="btn btn-primary" disabled={action.busy || !active || !body.trim()}>{action.busy ? 'Sending…' : 'Send'}</button>
+      </div>
     </form>
   </section>;
 }
