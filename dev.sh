@@ -18,6 +18,7 @@ BACKEND="$ROOT/backend"
 FRONTEND="$ROOT/frontend"
 LOG_DIR="$ROOT/.dev-logs"
 NODE_MAJOR=24
+API_BIND_HOST="0.0.0.0"
 
 RUN_BACKEND=1
 RUN_FRONTEND=1
@@ -60,7 +61,7 @@ Options:
   -h, --help            Show this help.
 
 Processes started (native, no containers):
-  api        php artisan serve            http://localhost:8000
+  api        php artisan serve            http://localhost:8000 (LAN-accessible)
   reverb     php artisan reverb:start     ws://localhost:8080
   queue      php artisan queue:work
   scheduler  php artisan schedule:work
@@ -257,7 +258,7 @@ set -m   # each background service becomes its own process-group leader
 
 if [[ $RUN_BACKEND == 1 ]]; then
   step "Starting backend services"
-  start_service api       "$BACKEND" php artisan serve --host=127.0.0.1 --port=8000
+  start_service api       "$BACKEND" php artisan serve --host="$API_BIND_HOST" --port=8000
   start_service reverb    "$BACKEND" php artisan reverb:start
   start_service queue     "$BACKEND" php artisan queue:work --sleep=1 --tries=3 --timeout=65
   start_service scheduler "$BACKEND" php artisan schedule:work
@@ -275,10 +276,14 @@ if [[ $RUN_FRONTEND == 1 ]]; then
   start_service desktop "$FRONTEND" npm run dev
 fi
 
+LAN_IP="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for (i = 1; i <= NF; i++) if ($i == "src") {print $(i + 1); exit}}' || true)"
+PHONE_API="http://${LAN_IP:-YOUR_LAN_IP}:8000/api/v1/demo"
+
 cat <<TXT
 
 ${B}AMAN is running.${R}
   Demo API    ${DIM}http://localhost:8000/api/v1/demo/simulations${R}
+  Phone API   ${DIM}${PHONE_API}${R}
   Health      ${DIM}http://localhost:8000/up${R}
   Renderer    ${DIM}http://localhost:3000${R}
   Reverb      ${DIM}ws://localhost:8080${R}
@@ -287,6 +292,10 @@ ${B}AMAN is running.${R}
 Press ${B}Ctrl-C${R} to stop everything.
 
 TXT
+
+if [[ $RUN_BACKEND == 1 ]]; then
+  warn "The backend is exposed to devices on your local network. Use this only on a trusted network."
+fi
 
 wait -n "${SERVICE_PIDS[@]}" 2>/dev/null || true
 warn "A service exited. Shutting the rest down."
