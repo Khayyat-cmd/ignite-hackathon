@@ -52,7 +52,7 @@ void main() {
     await tester.pumpWidget(AmanResponderApp(gateway: FakeGateway()));
     await tester.pumpAndSettle();
 
-    expect(find.text('Select your call sign'), findsOneWidget);
+    expect(find.text('Choose your profile'), findsOneWidget);
     expect(find.text('Event #3 · Stadium rehearsal · RUNNING'), findsOneWidget);
     expect(find.text('East Marshal'), findsOneWidget);
     expect(find.textContaining('REHEARSAL'), findsOneWidget);

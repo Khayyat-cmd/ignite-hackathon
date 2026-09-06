@@ -41,17 +41,17 @@ export default function Copilot({ data, onReviewSuggestion }) {
     });
   }
 
-  return <section className="copilot" aria-label="AMAN Copilot">
+  return <section className="copilot" aria-label="Situation assistant">
     <div className="copilot-head">
-      <span className="label">AMAN Copilot</span>
-      <span className="meta">Advisory only</span>
+      <span className="label">Situation assistant</span>
+      <span className="meta">Review before action</span>
     </div>
     {messages.length === 0 && <>
       <p className="copilot-intro">Ask about live crowd conditions, incidents, uncertainty, or which responder should be reviewed.</p>
       {proactive && <div className="copilot-suggestion">
         <strong>Dispatch review suggested</strong>
         <p>{proactive.reason}</p>
-        <button type="button" className="btn" onClick={() => onReviewSuggestion(proactive)}>Review responder and route</button>
+        <button type="button" className="btn" onClick={() => onReviewSuggestion(proactive)}>Review dispatch</button>
       </div>}
       <div className="copilot-starters">
         {STARTERS.map((starter) => <button type="button" key={starter} disabled={action.busy} onClick={() => ask(starter)}>{starter}</button>)}
@@ -59,10 +59,10 @@ export default function Copilot({ data, onReviewSuggestion }) {
     </>}
     {messages.length > 0 && <div className="copilot-messages" aria-live="polite">
       {messages.map((message, index) => <article className={`copilot-message ${message.role}`} key={`${message.role}-${index}`}>
-        <small>{message.role === 'user' ? 'Operator' : 'AMAN Copilot'}</small>
+        <small>{message.role === 'user' ? 'You' : 'Assistant'}</small>
         <p>{message.content}</p>
         {message.suggestion && <div className="copilot-suggestion compact">
-          <strong>Human approval required</strong>
+          <strong>Review before dispatch</strong>
           <p>{message.suggestion.reason}</p>
           <button type="button" className="btn" onClick={() => onReviewSuggestion(message.suggestion)}>Review dispatch proposal</button>
         </div>}
@@ -71,7 +71,7 @@ export default function Copilot({ data, onReviewSuggestion }) {
       {action.busy && <p className="hint">Reviewing the latest situation…</p>}
     </div>}
     <form className="copilot-compose" onSubmit={(event) => { event.preventDefault(); ask(); }}>
-      <input aria-label="Ask AMAN Copilot" value={question} maxLength={1000} placeholder="Ask about the live situation…" disabled={action.busy} onChange={(event) => setQuestion(event.target.value)} />
+      <input aria-label="Ask about the situation" value={question} maxLength={1000} placeholder="Ask about the current situation…" disabled={action.busy} onChange={(event) => setQuestion(event.target.value)} />
       <button type="submit" className="btn btn-primary" disabled={action.busy || question.trim().length < 2}>Ask</button>
     </form>
     <Notice error>{action.error}</Notice>

@@ -44,7 +44,7 @@ function TopBar({ session, run }) {
 function StatusBar({ data, error }) {
   return <div className="statusbar">
     <span className="tag">Rehearsal data</span>
-    <span>Attendee positions are simulated. Responder reachability uses Nokia sandbox devices.</span>
+    <span>Attendee positions and network status are simulated.</span>
     <span className="statusbar-end">
       <span>Sample <b>{time(data?.observedAt)}</b></span>
       <span>Revision <b>{data?.revision ?? '—'}</b></span>
@@ -57,7 +57,7 @@ function NewRunBar({ session }) {
   return <form className="newbar" onSubmit={(event) => { event.preventDefault(); session.onCreate(); }}>
     <span className="label">New rehearsal</span>
     <label className="newbar-field">
-      <span>Fictional attendees</span>
+      <span>Attendees</span>
       <input type="number" min="100" max="10000" step="1" value={session.attendees} onChange={(event) => session.setAttendees(event.target.value)} required />
     </label>
     <span className="hint">6,000 recommended</span>
@@ -71,9 +71,9 @@ function SetupScreen({ session, loading }) {
   return <div className="setup">
     <form className="setup-card" onSubmit={(event) => { event.preventDefault(); session.onCreate(); }}>
       <h2>Create a rehearsal event</h2>
-      <p>Simulated attendee positions drive zone density. Responder reachability comes from Nokia sandbox devices.</p>
+      <p>Run a simulated stadium event from detection through response and resolution.</p>
       <label className="field">
-        <span>Fictional attendees</span>
+        <span>Attendees</span>
         <input type="number" min="100" max="10000" step="1" value={session.attendees} onChange={(event) => session.setAttendees(event.target.value)} required />
       </label>
       <button className="btn btn-primary btn-lg btn-block" disabled={session.busy}>{session.busy ? 'Creating…' : 'Create rehearsal'}</button>
@@ -91,8 +91,8 @@ function EventShell({ id, session }) {
 
   function control(value) {
     const confirmations = {
-      reset: 'Archive this rehearsal and create a new paused event? Demo phone access will be revoked.',
-      stop: 'Stop this rehearsal? Pending missions will end and demo phone access will be revoked.',
+      reset: 'Archive this rehearsal and create a new paused event? Phone access for this event will end.',
+      stop: 'Stop this rehearsal? Pending missions and phone access for this event will end.',
     };
     if (confirmations[value] && !window.confirm(confirmations[value])) return;
     action.run(async () => {
@@ -103,7 +103,7 @@ function EventShell({ id, session }) {
   }
 
   const failure = feed.error || action.error || session.error;
-  const warning = !failure && data?.stale ? 'Readings are stale. If the event is running, check that Laravel’s scheduler is running. Displayed counts are the last received sample.' : '';
+  const warning = !failure && data?.stale ? 'Live readings have stopped. Displayed counts are from the last received update.' : '';
 
   return <>
     <TopBar session={session} run={data ? { data, error: feed.error, busy: action.busy, control } : null} />

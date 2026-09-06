@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -100,20 +101,31 @@ class AmanApi implements ResponderGateway {
       'Accept': 'application/json',
       if (body != null) 'Content-Type': 'application/json',
     };
-    final response = method == 'GET'
-        ? await _client
-              .get(uri, headers: headers)
-              .timeout(const Duration(seconds: 15))
-        : await _client
-              .post(uri, headers: headers, body: jsonEncode(body))
-              .timeout(const Duration(seconds: 15));
-    final payload = jsonDecode(response.body) as Map<String, dynamic>;
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw ApiException(
-        payload['message'] as String? ?? 'The request could not be completed.',
-      );
+    try {
+      final response = method == 'GET'
+          ? await _client
+                .get(uri, headers: headers)
+                .timeout(const Duration(seconds: 15))
+          : await _client
+                .post(uri, headers: headers, body: jsonEncode(body))
+                .timeout(const Duration(seconds: 15));
+      final payload = jsonDecode(response.body) as Map<String, dynamic>;
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw ApiException(
+          payload['message'] as String? ??
+              'The request could not be completed.',
+        );
+      }
+      return payload;
+    } on ApiException {
+      rethrow;
+    } on TimeoutException {
+      throw const ApiException('The connection timed out. Try again.');
+    } on http.ClientException {
+      throw const ApiException('AMAN could not reach the server.');
+    } on FormatException {
+      throw const ApiException('The server returned an unexpected response.');
     }
-    return payload;
   }
 }
 

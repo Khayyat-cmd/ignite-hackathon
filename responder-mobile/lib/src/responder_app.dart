@@ -90,9 +90,19 @@ class _ResponderEntryState extends State<ResponderEntry> {
       if (!mounted) return;
       setState(() {
         _responders = responders;
-        _selectedId = responders.any((item) => item.id == saved) ? saved : null;
-        _selectedEventId = responders
+        final savedResponder = responders
             .where((item) => item.id == saved)
+            .firstOrNull;
+        final hasCurrentEvent = responders.any(
+          (item) => item.eventStatus != 'stopped',
+        );
+        _selectedId =
+            savedResponder != null &&
+                (savedResponder.eventStatus != 'stopped' || !hasCurrentEvent)
+            ? saved
+            : null;
+        _selectedEventId = responders
+            .where((item) => item.id == _selectedId)
             .firstOrNull
             ?.eventId;
         _selectedEventId ??= responders
@@ -117,12 +127,23 @@ class _ResponderEntryState extends State<ResponderEntry> {
 
   @override
   Widget build(BuildContext context) {
+    final allResponders = _responders ?? const <Responder>[];
+    final currentResponders = allResponders
+        .where((item) => item.eventStatus != 'stopped')
+        .toList();
+    final selectableResponders = currentResponders.isEmpty
+        ? allResponders
+        : currentResponders;
+    final selectedEventId =
+        selectableResponders.any((item) => item.eventId == _selectedEventId)
+        ? _selectedEventId
+        : selectableResponders.firstOrNull?.eventId;
     final events = <String, Responder>{
-      for (final responder in _responders ?? const <Responder>[])
+      for (final responder in selectableResponders)
         responder.eventId: responder,
     }.values.toList();
-    final visibleResponders = (_responders ?? const <Responder>[]).where(
-      (item) => item.eventId == _selectedEventId,
+    final visibleResponders = selectableResponders.where(
+      (item) => item.eventId == selectedEventId,
     );
     final selected = _responders
         ?.where((item) => item.id == _selectedId)
@@ -144,21 +165,22 @@ class _ResponderEntryState extends State<ResponderEntry> {
               const BrandHeader(label: 'FIELD RESPONSE'),
               const SizedBox(height: 48),
               Text(
-                'Select your call sign',
+                'Choose your profile',
                 style: Theme.of(context).textTheme.headlineMedium,
               ),
               const SizedBox(height: 10),
               const Text(
-                'Choose your rehearsal event, then select the responder assigned to this device.',
+                'Select the current event, then choose your name.',
                 style: TextStyle(color: muted),
               ),
               const SizedBox(height: 28),
               if (_responders == null && _error == null)
                 const Center(child: CircularProgressIndicator()),
-              if (_error != null) ErrorCard(onRetry: _load),
+              if (_error != null) ErrorCard(message: _error!, onRetry: _load),
+              if (_responders?.isEmpty ?? false) const EmptyDirectoryCard(),
               if (events.isNotEmpty) ...[
                 DropdownButtonFormField<String>(
-                  initialValue: _selectedEventId,
+                  initialValue: selectedEventId,
                   isExpanded: true,
                   decoration: const InputDecoration(
                     labelText: 'Rehearsal event',
@@ -306,7 +328,7 @@ class _MissionHomeState extends State<MissionHome> {
               if (_error != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 14),
-                  child: ErrorCard(onRetry: _refresh),
+                  child: ErrorCard(message: _error!, onRetry: _refresh),
                 ),
               const SizedBox(height: 24),
               Row(
@@ -485,7 +507,7 @@ class ResponderTile extends StatelessWidget {
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    responder.role.replaceAll('_', ' '),
+                    responder.roleLabel,
                     style: const TextStyle(color: muted),
                   ),
                 ],
@@ -619,7 +641,7 @@ class MissionCard extends StatelessWidget {
     if (mission.arrivalStatus == 'TRUE') {
       return 'Location verified. Confirm when you are ready to begin.';
     }
-    return 'Proceed to the assigned area. AMAN will verify arrival from the simulation feed.';
+    return 'Proceed to the assigned area. Arrival will be verified automatically.';
   }
 }
 
@@ -666,7 +688,7 @@ class _MissionThreadState extends State<MissionThread> {
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 18),
             child: Text(
-              'No messages yet. Operational instructions will appear here.',
+              'No messages yet. Instructions from the control room will appear here.',
               style: TextStyle(color: muted),
             ),
           ),
@@ -774,8 +796,38 @@ class EmptyMissionCard extends StatelessWidget {
   );
 }
 
+class EmptyDirectoryCard extends StatelessWidget {
+  const EmptyDirectoryCard({super.key});
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 36),
+    decoration: BoxDecoration(
+      color: surface,
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(color: line),
+    ),
+    child: const Column(
+      children: [
+        Icon(Icons.event_busy_outlined, color: muted, size: 34),
+        SizedBox(height: 12),
+        Text(
+          'No event available',
+          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+        ),
+        SizedBox(height: 6),
+        Text(
+          'Start a rehearsal from the operations console, then refresh.',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: muted),
+        ),
+      ],
+    ),
+  );
+}
+
 class ErrorCard extends StatelessWidget {
-  const ErrorCard({super.key, required this.onRetry});
+  const ErrorCard({super.key, required this.message, required this.onRetry});
+  final String message;
   final VoidCallback onRetry;
   @override
   Widget build(BuildContext context) => Container(
@@ -787,11 +839,7 @@ class ErrorCard extends StatelessWidget {
     ),
     child: Row(
       children: [
-        const Expanded(
-          child: Text(
-            'Connection interrupted. Pull down or retry when the backend is available.',
-          ),
-        ),
+        Expanded(child: Text(message)),
         TextButton(onPressed: onRetry, child: const Text('Retry')),
       ],
     ),

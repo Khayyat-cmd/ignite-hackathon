@@ -31,9 +31,9 @@ describe('Command center', () => {
   it('renders a dispatch recommendation and responder stadium position', () => {
     const html = renderToStaticMarkup(<OperatorPanel data={{ ...base, responders: [{ id: 'r1', name: 'Concourse Marshal', role: 'crowd_marshal', available: true, signals: { simulationPoint: { x: 32.5, y: 0 }, location: { accuracyMeters: 1 }, reachability: { dataReachable: true, checkedAt: '2026-09-05T12:00:00Z' }, rawResponses: { privateDebugData: true } } }], incidents: [{ id: 'i1', zone_id: 'east', active_zone_id: 'east', status: 'awaiting_approval', responder_id: 'r1', decision: { candidates: [{ responderId: 'r1', distanceMeters: 42 }] } }] }} />);
     expect(html).toContain('Concourse Marshal');
-    expect(html).toContain('Stadium position');
-    expect(html).toContain('x 32.5');
-    expect(html).toContain('I reviewed the evidence and route');
+    expect(html).not.toContain('Stadium position');
+    expect(html).not.toContain('x 32.5');
+    expect(html).toContain('I reviewed the situation and route');
     expect(html).toContain('Dispatch selected responder');
     expect(html).toContain('42 m away');
     expect(html).toContain('Mobile data confirmed');
@@ -58,8 +58,8 @@ describe('Command center', () => {
     const html = renderToStaticMarkup(<OperatorPanel data={{ ...base, responders: [{ id: 'r1', name: 'Concourse Marshal', available: true, signals: {} }], incidents: [incident] }} />);
     expect(html).toContain('Response brief');
     expect(html).toContain('Crowd density is rising');
-    expect(html).toContain('Accept advice &amp; dispatch');
-    expect(html).toContain('Operator approval required');
+    expect(html).toContain('Dispatch recommended responder');
+    expect(html).toContain('Review before dispatch');
     expect(html).not.toContain('internal-model-name');
   });
   it('projects boundaries within the view and handles missing geometry', () => {

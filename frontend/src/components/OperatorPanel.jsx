@@ -38,7 +38,6 @@ function ZoneRow({ zone, stale, selected, onSelect }) {
 
 function ResponderCard({ responder, index }) {
   const reachability = responder.signals?.reachability;
-  const point = responder.signals?.simulationPoint;
   const accuracy = responder.signals?.location?.accuracyMeters;
   const reachable = reachability?.status === 'unknown' ? 'Unknown' : reachability?.dataReachable ? 'Reachable' : 'Not reachable';
   return <article className="responder-card">
@@ -51,15 +50,9 @@ function ResponderCard({ responder, index }) {
       <i className={`dot ${reachability?.dataReachable ? 'normal' : reachability?.status === 'unknown' ? '' : 'critical'}`} />
       <span>Mobile data</span><b>{reachable}</b>
     </div>
-    <div className="signal"><span>Congestion</span><Badge value={responder.signals?.congestion?.[0]?.congestionLevel || 'unknown'} /></div>
-    <div className="signal">
-      <span>Stadium position</span>
-      <b>x {point?.x?.toFixed?.(1) ?? '—'} · z {point?.y?.toFixed?.(1) ?? '—'}</b>
-    </div>
     <Notice error>{reachability?.error}</Notice>
     <div className="fact-tags" aria-label="Responder signal facts">
-      <span>Nokia sandbox</span>
-      {reachability?.checkedAt && <span>Checked {time(reachability.checkedAt)}</span>}
+      {reachability?.checkedAt && <span>Updated {time(reachability.checkedAt)}</span>}
       {accuracy != null && <span>Location ±{accuracy} m</span>}
     </div>
   </article>;
@@ -76,7 +69,7 @@ function DecisionFacts({ incident, responder }) {
       {candidate?.distanceMeters != null && <span>{candidate.distanceMeters} m away</span>}
       {responder?.signals?.reachability?.dataReachable && <span>Mobile data confirmed</span>}
       {responder?.role && <span>{responder.role.replaceAll('_', ' ')}</span>}
-      {advised && <span>Supported by response brief</span>}
+      {advised && <span>Recommended</span>}
     </div>
     <p className="hint">Only responders that pass the current eligibility and availability checks appear in the dispatch list.</p>
   </div>;
@@ -88,20 +81,20 @@ function Brief({ decision, busy, retry }) {
   if (status === 'pending') {
     return <section className="brief brief-pending">
       <div className="brief-head"><span className="label">Response brief</span><Badge value="analyzing" /></div>
-      <p className="hint">Assessing the incident and eligible responders…</p>
+      <p className="hint">Preparing response options…</p>
     </section>;
   }
   if (status === 'failed') {
     return <section className="brief brief-failed">
       <div className="brief-head"><span className="label">Response brief</span><Badge value="unavailable" /></div>
-      <p className="hint">{decision.adviceError}</p>
-      <div><button type="button" className="btn" disabled={busy} onClick={retry}>Retry analysis</button></div>
+      <p className="hint">The brief could not be prepared. Verified responder options are still available below.</p>
+      <div><button type="button" className="btn" disabled={busy} onClick={retry}>Retry brief</button></div>
     </section>;
   }
   if (!advice) {
     return <section className="brief">
       <div className="brief-head"><span className="label">Response brief</span><Badge value="offline" /></div>
-      <p className="hint">Model analysis is unavailable. The verified responder ranking remains active.</p>
+      <p className="hint">The automated brief is unavailable. Verified responder options are still available below.</p>
     </section>;
   }
   return <section className="brief">
@@ -117,7 +110,7 @@ function Brief({ decision, busy, retry }) {
       <summary>Uncertainty to review</summary>
       <ul className="evidence">{advice.uncertainties.map((item) => <li key={item}>{item}</li>)}</ul>
     </details>}
-    <span className="brief-meta">AI-assisted · generated {time(advice.generatedAt)}<br />Operator approval required</span>
+    <span className="brief-meta">Updated {time(advice.generatedAt)} · Review before dispatch</span>
   </section>;
 }
 
@@ -176,14 +169,14 @@ function IncidentDetail({ incident, refresh, responders, zones, stale, stopped, 
         </label>
         <label className="check">
           <input type="checkbox" checked={reviewed} onChange={(e) => setReviewed(e.target.checked)} />
-          I reviewed the evidence and route
+          I reviewed the situation and route
         </label>
         <button
           type="button"
           className="btn btn-primary btn-lg btn-block"
           disabled={action.busy || !reviewed || stale || !selectedResponderId}
           onClick={() => mutate('approve', { routeReviewed: true, responderId: selectedResponderId })}
-        >{selectedResponderId === advisedResponderId ? 'Accept advice & dispatch' : 'Dispatch selected responder'}</button>
+        >{selectedResponderId === advisedResponderId ? 'Dispatch recommended responder' : 'Dispatch selected responder'}</button>
       </> : <p className="hint">No responder is currently eligible for this incident.</p>}
       <button type="button" className="btn btn-quiet" disabled={action.busy || stale} onClick={() => mutate('recommend')}>Refresh recommendation</button>
     </div>}
@@ -259,7 +252,7 @@ export default function OperatorPanel({ data, refresh }) {
           <span>Incidents</span><span className={awaiting ? 'count-chip alert' : 'count-chip'}>{visibleIncidents.length}</span>
         </button>
         <button type="button" className={decisionView === 'copilot' ? 'active' : ''} aria-pressed={decisionView === 'copilot'} onClick={() => setDecisionView('copilot')}>
-          <span>AMAN Copilot</span>
+          <span>Assistant</span>
         </button>
       </nav>
       <div className="decision-view" hidden={decisionView !== 'copilot'}>
@@ -283,7 +276,7 @@ export default function OperatorPanel({ data, refresh }) {
               >
                 <strong>{zoneName(incident.zone_id)}</strong>
                 <Badge value={incident.status} />
-                <span className="queue-meta">{incident.active_zone_id ? 'Active' : 'Closed'} · incident {incident.id}</span>
+                <span className="queue-meta">{incident.active_zone_id ? 'Active incident' : 'Closed incident'}{incident.created_at ? ` · ${time(incident.created_at)}` : ''}</span>
               </button>;
             })}
           </div>}

@@ -30,11 +30,11 @@ export async function apiRequest(path, { method = 'GET', body, signal } = {}) {
     if (!response.ok) {
       const validation = payload?.errors ? Object.values(payload.errors).flat().join(' ') : '';
       const fallback = {
-        403: 'This demo action is not available in the current state.',
+        403: 'This action is not available in the current state.',
         409: 'The state changed or the evidence is stale. Refresh and try the correct next action.',
         422: 'The request is not valid for the current state.',
         429: 'Too many requests. Wait before retrying.',
-        503: 'A provider or backend service is currently unavailable.',
+        503: 'A required service is currently unavailable.',
       };
       const retryAfter = Number(response.headers.get('Retry-After'));
       throw new ApiError(validation || payload?.message || fallback[response.status] || 'Request failed.', response.status, retryAfter || null);

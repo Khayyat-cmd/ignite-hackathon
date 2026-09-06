@@ -22,6 +22,9 @@ class Responder {
   String get eventLabel =>
       eventNumber == null ? eventName : 'Event #$eventNumber · $eventName';
 
+  String get roleLabel =>
+      role == 'crowd_marshal' ? 'Crowd responder' : role.replaceAll('_', ' ');
+
   factory Responder.fromJson(Map<String, dynamic> json) {
     final event = json['event'] as Map<String, dynamic>? ?? const {};
     return Responder(
