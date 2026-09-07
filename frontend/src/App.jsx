@@ -2,98 +2,115 @@ import { useCallback, useState } from 'react';
 import { apiRequest } from './api/client';
 import { usePolling } from './hooks/usePolling';
 import { useAction } from './hooks/useAction';
+import { useI18n, LanguageToggle } from './i18n';
 import OperatorPanel from './components/OperatorPanel';
-import { Mark, Notice, clock, time } from './components/Shared';
+import { Mark, Notice, clock } from './components/Shared';
 
-const STEPS = ['Start', 'Dispatch', 'Acknowledge', 'Arrive', 'Manage crowd', 'Disperse', 'Resolve'];
+const STEPS = ['start', 'dispatch', 'acknowledge', 'arrive', 'manage', 'disperse', 'resolve'];
+const RECOMMENDED_ATTENDEES = 6000;
 
 function TopBar({ session, run }) {
+  const { t, n, term } = useI18n();
   const data = run?.data;
   const live = data?.status === 'running' && !data.stale && !run.error;
   const warn = Boolean(data && (data.stale || run.error));
-  const label = run?.error ? 'No link' : data?.stale ? 'Stale' : data?.status === 'running' ? 'Live' : data?.status === 'paused' ? 'Paused' : 'Stopped';
+  const label = run?.error
+    ? t('state.noLink')
+    : data?.stale
+      ? t('state.stale')
+      : data?.status === 'running'
+        ? t('state.live')
+        : data?.status === 'paused'
+          ? t('state.paused')
+          : t('state.stopped');
+  const phase = data?.phase ? t(`phase.${data.phase}`) : '';
   return <header className="topbar">
-    <div className="brand"><Mark /><span className="brand-name">AMAN</span><span className="brand-sub">Operations console</span></div>
+    <div className="brand"><Mark /><span className="brand-name">AMAN</span><span className="brand-sub">{t('topbar.brandSub')}</span></div>
     <span className="topbar-rule" />
     {session.runs.length > 0 && <label className="topbar-select">
-      <select aria-label="Rehearsal event" value={session.id || ''} onChange={(event) => session.onSelect(Number(event.target.value))}>
-        {session.runs.map((run) => <option key={run.id} value={run.id}>Event #{run.id} · {run.status} · {run.attendee_count?.toLocaleString()} attendees</option>)}
+      <select aria-label={t('topbar.eventSelect')} value={session.id || ''} onChange={(event) => session.onSelect(Number(event.target.value))}>
+        {session.runs.map((run) => <option key={run.id} value={run.id}>
+          {t('topbar.eventOption', { id: run.id, status: term(run.status), count: n(run.attendee_count) })}
+        </option>)}
       </select>
     </label>}
-    <button type="button" className="btn btn-quiet" disabled={session.hasActive || session.creating} onClick={session.onNew}>New rehearsal</button>
+    <button type="button" className="btn btn-quiet" disabled={session.hasActive || session.creating} onClick={session.onNew}>{t('topbar.newRehearsal')}</button>
     <span className="topbar-spacer" />
     {data && <>
       <div className="run-state">
         <span className={`state-pill${live ? ' state-live' : warn ? ' state-warn' : ''}`}>
           <i className={`dot ${live ? 'live' : warn ? 'warning' : ''}`} />{label}
         </span>
-        <span className="run-clock">{clock(data.elapsedSeconds)}</span>
-        <span className="run-phase">{(data.phase || '').replaceAll('_', ' ')}</span>
+        <span className="run-clock" dir="ltr">{clock(data.elapsedSeconds)}</span>
+        <span className="run-phase">{phase}</span>
       </div>
       <span className="topbar-rule" />
       <div className="topbar-actions">
-        <button type="button" className="btn btn-primary" disabled={run.busy || data.status !== 'paused'} onClick={() => run.control('start')}>{data.elapsedSeconds ? 'Resume' : 'Start'}</button>
-        <button type="button" className="btn" disabled={run.busy || data.status !== 'running'} onClick={() => run.control('pause')}>Pause</button>
-        <button type="button" className="btn" disabled={run.busy || data.status === 'stopped'} onClick={() => run.control('stop')}>Stop</button>
-        <button type="button" className="btn btn-quiet" disabled={run.busy} onClick={() => run.control('reset')}>Reset</button>
+        <button type="button" className="btn btn-primary" disabled={run.busy || data.status !== 'paused'} onClick={() => run.control('start')}>{data.elapsedSeconds ? t('topbar.resume') : t('topbar.start')}</button>
+        <button type="button" className="btn" disabled={run.busy || data.status !== 'running'} onClick={() => run.control('pause')}>{t('topbar.pause')}</button>
+        <button type="button" className="btn" disabled={run.busy || data.status === 'stopped'} onClick={() => run.control('stop')}>{t('topbar.stop')}</button>
+        <button type="button" className="btn btn-quiet" disabled={run.busy} onClick={() => run.control('reset')}>{t('topbar.reset')}</button>
       </div>
     </>}
+    <span className="topbar-rule" />
+    <LanguageToggle />
   </header>;
 }
 
 function StatusBar({ data, error }) {
+  const { t, n, time } = useI18n();
   return <div className="statusbar">
-    <span className="tag">Rehearsal data</span>
-    <span>Attendee positions and network status are simulated.</span>
+    <span className="tag">{t('status.rehearsalTag')}</span>
+    <span>{t('status.simulatedNote')}</span>
     <span className="statusbar-end">
-      <span>Sample <b>{time(data?.observedAt)}</b></span>
-      <span>Revision <b>{data?.revision ?? '—'}</b></span>
-      <span>Backend <b>{error ? 'unreachable' : 'connected'}</b></span>
+      <span>{t('status.sample')} <b>{time(data?.observedAt)}</b></span>
+      <span>{t('status.revision')} <b>{data?.revision == null ? '—' : n(data.revision)}</b></span>
+      <span>{t('status.backend')} <b>{error ? t('status.unreachable') : t('status.connected')}</b></span>
     </span>
   </div>;
 }
 
 function NewRunBar({ session }) {
+  const { t, n } = useI18n();
   return <form className="newbar" onSubmit={(event) => { event.preventDefault(); session.onCreate(); }}>
-    <span className="label">New rehearsal</span>
+    <span className="label">{t('newrun.title')}</span>
     <label className="newbar-field">
-      <span>Attendees</span>
+      <span>{t('newrun.attendees')}</span>
       <input type="number" min="100" max="10000" step="1" value={session.attendees} onChange={(event) => session.setAttendees(event.target.value)} required />
     </label>
-    <span className="hint">6,000 recommended</span>
-    <button className="btn btn-primary" disabled={session.busy}>{session.busy ? 'Creating…' : 'Create event'}</button>
-    <button type="button" className="btn btn-quiet" onClick={session.onCancel}>Cancel</button>
+    <span className="hint">{t('newrun.recommended', { count: n(RECOMMENDED_ATTENDEES) })}</span>
+    <button className="btn btn-primary" disabled={session.busy}>{session.busy ? t('newrun.creating') : t('newrun.createEvent')}</button>
+    <button type="button" className="btn btn-quiet" onClick={session.onCancel}>{t('common.cancel')}</button>
   </form>;
 }
 
 function SetupScreen({ session, loading }) {
-  if (loading) return <div className="setup"><p className="hint">Loading events…</p></div>;
+  const { t } = useI18n();
+  if (loading) return <div className="setup"><p className="hint">{t('setup.loadingEvents')}</p></div>;
   return <div className="setup">
     <form className="setup-card" onSubmit={(event) => { event.preventDefault(); session.onCreate(); }}>
-      <h2>Create a rehearsal event</h2>
-      <p>Run a simulated stadium event from detection through response and resolution.</p>
+      <h2>{t('setup.title')}</h2>
+      <p>{t('setup.blurb')}</p>
       <label className="field">
-        <span>Attendees</span>
+        <span>{t('newrun.attendees')}</span>
         <input type="number" min="100" max="10000" step="1" value={session.attendees} onChange={(event) => session.setAttendees(event.target.value)} required />
       </label>
-      <button className="btn btn-primary btn-lg btn-block" disabled={session.busy}>{session.busy ? 'Creating…' : 'Create rehearsal'}</button>
-      <div className="setup-steps">{STEPS.map((step) => <span key={step}>{step}</span>)}</div>
+      <button className="btn btn-primary btn-lg btn-block" disabled={session.busy}>{session.busy ? t('newrun.creating') : t('setup.create')}</button>
+      <div className="setup-steps">{STEPS.map((step) => <span key={step}>{t(`setup.step.${step}`)}</span>)}</div>
       <Notice error>{session.error}</Notice>
     </form>
   </div>;
 }
 
 function EventShell({ id, session }) {
+  const { t } = useI18n();
   const load = useCallback((signal) => apiRequest(`/simulations/${id}`, { signal }), [id]);
   const feed = usePolling(load);
   const action = useAction();
   const data = feed.data;
 
   function control(value) {
-    const confirmations = {
-      reset: 'Archive this rehearsal and create a new paused event? Phone access for this event will end.',
-      stop: 'Stop this rehearsal? Pending missions and phone access for this event will end.',
-    };
+    const confirmations = { reset: t('confirm.reset'), stop: t('confirm.stop') };
     if (confirmations[value] && !window.confirm(confirmations[value])) return;
     action.run(async () => {
       const result = await apiRequest(`/simulations/${id}/control`, { method: 'POST', body: { action: value } });
@@ -103,7 +120,7 @@ function EventShell({ id, session }) {
   }
 
   const failure = feed.error || action.error || session.error;
-  const warning = !failure && data?.stale ? 'Live readings have stopped. Displayed counts are from the last received update.' : '';
+  const warning = !failure && data?.stale ? t('warn.staleReadings') : '';
 
   return <>
     <TopBar session={session} run={data ? { data, error: feed.error, busy: action.busy, control } : null} />
@@ -114,7 +131,7 @@ function EventShell({ id, session }) {
     </div>}
     {data
       ? <OperatorPanel data={feed.error ? { ...data, stale: true } : data} refresh={feed.refresh} />
-      : <div className="setup"><p className="hint">{feed.error || 'Loading event…'}</p></div>}
+      : <div className="setup"><p className="hint">{feed.error || t('event.loading')}</p></div>}
   </>;
 }
 
@@ -122,7 +139,7 @@ export default function App() {
   const load = useCallback((signal) => apiRequest('/simulations', { signal }), []);
   const list = usePolling(load, { interval: 15000 });
   const [selected, setSelected] = useState(null);
-  const [attendees, setAttendees] = useState(6000);
+  const [attendees, setAttendees] = useState(RECOMMENDED_ATTENDEES);
   const [creating, setCreating] = useState(false);
   const action = useAction();
   const runs = list.data?.data?.data || [];

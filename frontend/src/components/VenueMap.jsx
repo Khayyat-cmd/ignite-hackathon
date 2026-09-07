@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useI18n } from '../i18n';
 import { riskClass } from './Shared';
 
 const VIEW_W = 720;
@@ -61,6 +62,7 @@ export default function VenueMap({
   linkedZoneId,
   onSelectResponder,
 }) {
+  const { t, n, term } = useI18n();
   const projection = useMemo(() => buildProjection(zones), [zones]);
   const shapes = projection?.shapes ?? [];
   const centres = useMemo(() => {
@@ -124,14 +126,14 @@ export default function VenueMap({
   }, [incidents]);
 
   return <section className="map-section">
-    <div className="pane-head">Venue<span className="meta">{zones.length} monitored zones · {pins.length} responders located</span></div>
+    <div className="pane-head">{t('map.head')}<span className="meta">{t('map.meta', { zones: n(zones.length), responders: n(pins.length) })}</span></div>
     <div className="map-canvas">
-      {shapes.length ? <svg viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} role="group" aria-label="Interactive zone boundary map">
+      {shapes.length ? <svg viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} role="group" aria-label={t('map.aria')}>
         {shapes.map(({ zone, points, bounds }) => <g
           key={zone.id}
           role="button"
           tabIndex={0}
-          aria-label={`${zone.name}: ${stale ? 'outdated' : zone.risk_level}`}
+          aria-label={t('map.zoneAria', { name: zone.name, state: stale ? t('map.outdated') : term(zone.risk_level) })}
           aria-pressed={selectedId === zone.id}
           onClick={() => onSelect?.(zone.id)}
           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect?.(zone.id); } }}
@@ -140,13 +142,13 @@ export default function VenueMap({
           <polygon points={points} />
           <text x={bounds.minX} y={Math.max(11, bounds.minY - 7)}>
             {zone.name}
-            <tspan className="map-count" dx="8">{zone.latest_reading?.deviceCount?.toLocaleString() ?? '—'}</tspan>
+            <tspan className="map-count" dx="8">{zone.latest_reading?.deviceCount == null ? '—' : n(zone.latest_reading.deviceCount)}</tspan>
           </text>
         </g>)}
 
         {link && <g className="map-link" aria-hidden="true">
           <line x1={link.from.x} y1={link.from.y} x2={link.to.x} y2={link.to.y} />
-          {linkLabel && <text x={linkLabel.x} y={linkLabel.y} textAnchor="middle">{linkDistance} m</text>}
+          {linkLabel && <text x={linkLabel.x} y={linkLabel.y} textAnchor="middle">{t('map.meters', { count: linkDistance })}</text>}
         </g>}
 
         {markers.map(({ incident, x, y }) => <g
@@ -165,7 +167,7 @@ export default function VenueMap({
             key={responder.id}
             role="button"
             tabIndex={0}
-            aria-label={`${responder.name}: ${assignment ? 'assigned' : 'available'}`}
+            aria-label={t('map.responderAria', { name: responder.name, state: assignment ? t('responder.assigned') : t('responder.available') })}
             aria-pressed={focusedResponderId === responder.id}
             onClick={() => onSelectResponder?.(responder.id)}
             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectResponder?.(responder.id); } }}
@@ -178,18 +180,18 @@ export default function VenueMap({
               && <text className="map-pin-name" x={x} y={y + 23} textAnchor="middle">{responder.name}</text>}
           </g>;
         })}
-      </svg> : <p className="map-empty">Zone geometry is not available for this event.</p>}
-      <span className="map-north">N ↑</span>
-      <span className="map-caption">ZONE SCHEMATIC · NOT A NAVIGATION MAP</span>
+      </svg> : <p className="map-empty">{t('map.empty')}</p>}
+      <span className="map-north">{t('map.north')}</span>
+      <span className="map-caption">{t('map.caption')}</span>
     </div>
     <div className="map-legend">
-      <span><i className="dot normal" />Normal</span>
-      <span><i className="dot warning" />Elevated</span>
-      <span><i className="dot critical" />Critical</span>
-      <span><i className="dot" />Uncertain / outdated</span>
-      <span className="legend-end"><i className="glyph glyph-incident">!</i>Incident</span>
-      <span><i className="glyph glyph-pin" />Available</span>
-      <span><i className="glyph glyph-pin assigned" />Assigned</span>
+      <span><i className="dot normal" />{t('map.legend.normal')}</span>
+      <span><i className="dot warning" />{t('map.legend.elevated')}</span>
+      <span><i className="dot critical" />{t('map.legend.critical')}</span>
+      <span><i className="dot" />{t('map.legend.uncertain')}</span>
+      <span className="legend-end"><i className="glyph glyph-incident">!</i>{t('map.legend.incident')}</span>
+      <span><i className="glyph glyph-pin" />{t('map.legend.available')}</span>
+      <span><i className="glyph glyph-pin assigned" />{t('map.legend.assigned')}</span>
     </div>
   </section>;
 }

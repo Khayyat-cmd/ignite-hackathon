@@ -1,6 +1,6 @@
 # AMAN implementation handoff
 
-Last updated: 2026-09-05
+Last updated: 2026-09-07
 
 Current implementation commits:
 
@@ -42,12 +42,13 @@ The user's real `OPENAI_API_KEY` is in `backend/.env`. A minimal live request re
 - The zone schematic carries the operational overlay: an incident badge in each affected zone's top-right corner, a pin per located responder (from `signals.location`), and a dashed link with the backend distance between the focused incident and its responder. Zone name and headcount sit in a label band above each polygon so pins and badges never cover them.
 - An attention bar above the workspace counts incidents awaiting dispatch approval, names their zones, jumps to the oldest, and sounds a short WebAudio cue when the count rises. The cue is mutable and the preference persists in `localStorage`; new queue rows flash briefly on arrival.
 - Zone rows carry a client-side density trend: a sparkline over the last 24 polls plus a signed delta and window (`↑ +0.28 /m² · 30s`). History lives only in the renderer and resets with the window.
-- One focus links the three panes. Selecting an incident highlights its zone on the map and in the left rail and highlights the responder assigned or recommended for it; selecting a zone filters the queue and opens its incident; selecting a responder opens the incident it is assigned to. Responder cards show their current assignment.
+- One focus links the three panes. Selecting an incident highlights its zone on the map and in the left rail and highlights the responder assigned or recommended for it; selecting a zone filters the queue and opens its incident; selecting a responder opens the incident it is assigned to. Responder cards show their current assignment and their live mobile-data reachability; the old "Updated <time>" and "Location ±<n> m" tags were removed as unreadable mid-incident.
 - The operator approval and resolution blocks are sticky to the bottom of the right rail, so the primary decision is never below the fold.
 - Simulation transport (start/resume, pause, stop, reset) and event selection live in the top bar; the rehearsal-data disclaimer, sample time, revision, and backend reachability live in a single status strip.
 - Neutral graphite chrome with a single blue interaction accent, so green/amber/red are only ever used for risk and status. Type, spacing, and radii follow one token scale; numeric readouts are tabular.
 - Structured response brief with urgency, confidence, evidence, uncertainty, proposed action, and model metadata.
 - Explicit operator responder selection and approval. The old React responder panel was removed.
+- English and Arabic, chosen from a switch in the top bar and persisted in `localStorage`. Selecting Arabic sets `dir="rtl"` and `lang="ar"` on the document; the layout follows through CSS logical properties, and Arabic drops the letter-spacing that would break letter joining.
 - Linux AppImage packaging through `npm run build:desktop`.
 
 ### Flutter responder app
@@ -60,6 +61,7 @@ The user's real `OPENAI_API_KEY` is in `backend/.env`. A minimal live request re
 - The mission action (acknowledge, then heading there / on scene) is pinned to the bottom of the screen and hides while the keyboard is open.
 - The connection pill reports the real poll state — LIVE, DELAYED, RECONNECTING, or OFFLINE — with the age of the last successful sync.
 - The mission thread scrolls inside its own bounded box, labels each message with its sender and time, renders progress events as centred system lines, and shows an unread badge for control-room instructions until the responder scrolls or taps the thread.
+- English and Arabic, chosen from a switch in the app header and persisted in `SharedPreferences`. Flutter's `flutter_localizations` delegates supply the right-to-left direction and the Material widget strings.
 - Professional field-operations visual system aligned with the desktop app.
 
 ## Run locally
@@ -110,7 +112,17 @@ flutter analyze
 flutter test
 ```
 
-The focused backend tests, 11 renderer tests, Flutter analysis, 3 Flutter widget tests, and the Electron AppImage build pass. The backend tests above were not re-run for the UI work; the renderer, Flutter, and packaging commands were. The repository's older full backend suite has pre-existing failures because it references removed authenticated routes and service classes such as `NokiaNetwork`, `OrangePopulationDensity`, and `PublishDomainEvent`; do not attribute those failures to the new three-client work without checking the baseline history.
+The focused backend tests, 21 renderer tests, Flutter analysis, 11 Flutter widget tests, and the Electron AppImage build pass. The backend tests above were not re-run for the UI work; the renderer, Flutter, and packaging commands were. The repository's older full backend suite has pre-existing failures because it references removed authenticated routes and service classes such as `NokiaNetwork`, `OrangePopulationDensity`, and `PublishDomainEvent`; do not attribute those failures to the new three-client work without checking the baseline history.
+
+## Localization
+
+Both clients ship English and Arabic. There is no translation framework and no build step: each app holds one flat key/value catalogue per language.
+
+- Electron: `frontend/src/i18n/strings.js` holds the catalogues, `frontend/src/i18n/index.jsx` the provider, the `useI18n()` hook, and the `LanguageToggle`. Nothing calls `toLocaleString` directly — `n()`, `time()`, `term()`, `role()` and `kind()` go through the hook, so one locale change moves every figure and every backend status word at once. Arabic keeps Latin digits (`ar-u-nu-latn`) so a reading looks like the same number in both languages, and plural keys resolve through `Intl.PluralRules`, which gives Arabic its six cardinal forms.
+- Flutter: `responder-mobile/lib/src/l10n.dart` holds both catalogues, the `Strings` lookup, and the `L10n` inherited scope. The scope is installed through `MaterialApp.builder` so pushed routes — the full-screen assignment takeover among them — read the same language.
+- The venue schematic never mirrors. Geography is not text, so the SVG stays `direction: ltr` and a zone an operator learned on the left stays on the left.
+- Both catalogue tests fail the build on a key that Arabic is missing, on placeholders that differ between languages, and on an Arabic value still written in Latin script.
+- Text that comes from outside the catalogues is not translated: zone and responder names as the backend stores them, operator instructions and responder replies as they were typed, and the model's own words in the response brief and the assistant. The assistant tells an Arabic operator that it answers in English.
 
 ## Remaining work
 
@@ -118,8 +130,9 @@ The focused backend tests, 11 renderer tests, Flutter analysis, 3 Flutter widget
 2. Add real operator/responder authentication when the prototype moves beyond local demo identities.
 3. Add sequence-based realtime replay for Electron and Unity reconnects.
 4. Give the Unity developer the snapshot/event fixtures in `docs/unity-events.md` and run the two-screen rehearsal.
-5. Add branded desktop/mobile store icons if presentation time allows.
-6. Run a full rehearsal: create and start a simulation, wait for an incident, inspect AI advice, override or accept the responder, acknowledge in Flutter, report on scene, and resolve after safe readings.
+5. Pass the operator's language to the AI so the response brief and the assistant answer in Arabic. The brief is generated by a queued, server-initiated job, so the run needs to carry a language before `OpenAiIncidentAdvisor` and `OpenAiOperatorCopilot` can be told which one to write in.
+6. Add branded desktop/mobile store icons if presentation time allows.
+7. Run a full rehearsal: create and start a simulation, wait for an incident, inspect AI advice, override or accept the responder, acknowledge in Flutter, report on scene, and resolve after safe readings.
 
 ## Important files
 
@@ -131,6 +144,8 @@ The focused backend tests, 11 renderer tests, Flutter analysis, 3 Flutter widget
 - `frontend/electron/main.cjs`: Electron security boundary.
 - `frontend/src/App.jsx`: window shell, top bar, status strip, and simulation transport.
 - `frontend/src/components/OperatorPanel.jsx`: operator incident and advisor experience.
-- `frontend/src/styles.css`: the console's colour, type, and spacing tokens.
+- `frontend/src/styles.css`: the console's colour, type, and spacing tokens, plus the right-to-left rules.
+- `frontend/src/i18n/strings.js`: the console's English and Arabic copy.
+- `responder-mobile/lib/src/l10n.dart`: the responder app's English and Arabic copy.
 - `responder-mobile/lib/src/responder_app.dart`: responder workflow UI.
 - `responder-mobile/lib/src/api.dart`: mobile demo API client.

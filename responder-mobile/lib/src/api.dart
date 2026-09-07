@@ -122,27 +122,35 @@ class AmanApi implements ResponderGateway {
                 .timeout(const Duration(seconds: 15));
       final payload = jsonDecode(response.body) as Map<String, dynamic>;
       if (response.statusCode < 200 || response.statusCode >= 300) {
-        throw ApiException(
-          payload['message'] as String? ??
-              'The request could not be completed.',
-        );
+        // A backend message is already specific; only the transport failures
+        // below carry a code the app can say in the responder's language.
+        final message = payload['message'] as String?;
+        throw message == null
+            ? const ApiException('The request could not be completed.', code: 'incomplete')
+            : ApiException(message);
       }
       return payload;
     } on ApiException {
       rethrow;
     } on TimeoutException {
-      throw const ApiException('The connection timed out. Try again.');
+      throw const ApiException('The connection timed out. Try again.', code: 'timeout');
     } on http.ClientException {
-      throw const ApiException('AMAN could not reach the server.');
+      throw const ApiException('AMAN could not reach the server.', code: 'unreachable');
     } on FormatException {
-      throw const ApiException('The server returned an unexpected response.');
+      throw const ApiException('The server returned an unexpected response.', code: 'malformed');
     }
   }
 }
 
 class ApiException implements Exception {
-  const ApiException(this.message);
+  const ApiException(this.message, {this.code});
+
   final String message;
+
+  /// Set for failures the app raises itself, so the UI can show them in the
+  /// responder's language. Null when the text came from the backend.
+  final String? code;
+
   @override
   String toString() => message;
 }

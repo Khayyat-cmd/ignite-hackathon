@@ -2,14 +2,11 @@ import { useCallback, useRef, useState } from 'react';
 import { apiRequest } from '../api/client';
 import { usePolling } from '../hooks/usePolling';
 import { useAction } from '../hooks/useAction';
-import { Notice, time } from './Shared';
-
-function messageLabel(kind) {
-  const labels = { en_route: 'Heading there', on_scene: 'On scene' };
-  return labels[kind] || kind.replaceAll('_', ' ');
-}
+import { useI18n } from '../i18n';
+import { Notice } from './Shared';
 
 export default function Messages({ incidentId, responderId, mobile = false, active = true, revision = 0 }) {
+  const { t, n, kind, time } = useI18n();
   const load = useCallback(async (signal) => {
     // Read all pages, including long conversations, using the backend's cursor.
     let after = 0;
@@ -44,12 +41,12 @@ export default function Messages({ incidentId, responderId, mobile = false, acti
     });
   }
   return <section className="block conversation">
-    <span className="label">{mobile ? 'Command center messages' : 'Instructions & field reports'}</span>
+    <span className="label">{mobile ? t('messages.mobileLabel') : t('messages.controlLabel')}</span>
     <Notice error>{feed.error}</Notice>
     <div className="messages" aria-live="polite">
-      {!feed.data?.length && <p className="hint">No messages yet.</p>}
+      {!feed.data?.length && <p className="hint">{t('messages.empty')}</p>}
       {feed.data?.map((message) => <article className={message.kind === 'instruction' ? 'bubble instruction' : 'bubble'} key={message.id}>
-        <small>{messageLabel(message.kind)} · {time(message.created_at)}</small>
+        <small>{kind(message.kind)} · {time(message.created_at)}</small>
         <p>{message.body}</p>
       </article>)}
     </div>
@@ -59,14 +56,14 @@ export default function Messages({ incidentId, responderId, mobile = false, acti
         maxLength={1000}
         required
         disabled={!active}
-        aria-label={mobile ? 'Send a reply' : 'Send an instruction'}
+        aria-label={mobile ? t('messages.replyAria') : t('messages.instructionAria')}
         onChange={(e) => { setBody(e.target.value); setSent(false); }}
-        placeholder={mobile ? 'Update the operator…' : 'Tell the responder what to do…'}
+        placeholder={mobile ? t('messages.replyPlaceholder') : t('messages.instructionPlaceholder')}
       />
       <Notice error>{action.error}</Notice>
       <div className="compose-foot">
-        <small className="hint" role="status">{sent ? 'Saved. The other app receives it on its next refresh.' : `${body.length}/1000`}</small>
-        <button className="btn btn-primary" disabled={action.busy || !active || !body.trim()}>{action.busy ? 'Sending…' : 'Send'}</button>
+        <small className="hint" role="status">{sent ? t('messages.saved') : t('messages.counter', { count: n(body.length) })}</small>
+        <button className="btn btn-primary" disabled={action.busy || !active || !body.trim()}>{action.busy ? t('messages.sending') : t('messages.send')}</button>
       </div>
     </form>
   </section>;
