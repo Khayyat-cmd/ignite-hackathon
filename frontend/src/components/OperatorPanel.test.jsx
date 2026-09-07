@@ -37,7 +37,10 @@ describe('Command center', () => {
     expect(html).toContain('Dispatch selected responder');
     expect(html).toContain('42 m away');
     expect(html).toContain('Mobile data confirmed');
-    expect(html).toContain('Location ±1 m');
+    // The responder card carries the live signal, not a timestamp and an
+    // accuracy radius an operator has to interpret mid-incident.
+    expect(html).not.toContain('Location ±1 m');
+    expect(html).not.toContain('Updated 12:00:00');
     expect(html).not.toContain('privateDebugData');
     expect(html).not.toContain('Connection detail');
   });

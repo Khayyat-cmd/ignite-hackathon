@@ -2,9 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api.dart';
+import 'l10n.dart';
 import 'models.dart';
 
 const ink = Color(0xFF080C1A);
@@ -46,18 +48,67 @@ final ThemeData responderTheme = ThemeData(
   ),
 );
 
-class AmanResponderApp extends StatelessWidget {
+class AmanResponderApp extends StatefulWidget {
   const AmanResponderApp({super.key, required this.gateway});
   final ResponderGateway gateway;
+
+  @override
+  State<AmanResponderApp> createState() => _AmanResponderAppState();
+}
+
+class _AmanResponderAppState extends State<AmanResponderApp> {
+  static const preferenceKey = 'app_language';
+  String _language = 'en';
+
+  @override
+  void initState() {
+    super.initState();
+    _restore();
+  }
+
+  Future<void> _restore() async {
+    final saved = (await SharedPreferences.getInstance()).getString(preferenceKey);
+    if (mounted && saved != null && supportedLanguages.contains(saved)) {
+      setState(() => _language = saved);
+    }
+  }
+
+  Future<void> _change(String language) async {
+    if (!supportedLanguages.contains(language) || language == _language) return;
+    setState(() => _language = language);
+    await (await SharedPreferences.getInstance()).setString(preferenceKey, language);
+  }
 
   @override
   Widget build(BuildContext context) => MaterialApp(
     debugShowCheckedModeBanner: false,
     title: 'AMAN Responder',
     theme: responderTheme,
-    home: ServerGate(gateway: gateway),
+    locale: Locale(_language),
+    supportedLocales: supportedLanguages.map(Locale.new).toList(),
+    localizationsDelegates: const [
+      GlobalMaterialLocalizations.delegate,
+      GlobalWidgetsLocalizations.delegate,
+      GlobalCupertinoLocalizations.delegate,
+    ],
+    // Installed above the Navigator so a pushed route — the full-screen
+    // assignment takeover included — reads the same language as the screen
+    // that pushed it.
+    builder: (context, child) => L10n(
+      strings: Strings(_language),
+      onChangeLanguage: _change,
+      child: child ?? const SizedBox.shrink(),
+    ),
+    home: ServerGate(gateway: widget.gateway),
   );
 }
+
+/// A failure the app raised itself is translated; text the backend sent is
+/// shown as it arrived.
+String describeError(Strings strings, Object error) =>
+    error is ApiException && error.code != null
+    ? strings.t('error.${error.code}')
+    : error.toString();
 
 class ServerGate extends StatefulWidget {
   const ServerGate({super.key, required this.gateway});
@@ -151,7 +202,7 @@ class ServerSetup extends StatefulWidget {
 
 class _ServerSetupState extends State<ServerSetup> {
   final _controller = TextEditingController();
-  String? _error;
+  Object? _error;
   bool _busy = false;
 
   @override
@@ -186,7 +237,7 @@ class _ServerSetupState extends State<ServerSetup> {
   Future<void> _connect() async {
     final baseUrl = _normalize(_controller.text);
     if (baseUrl == null) {
-      setState(() => _error = 'Enter a valid IP address or server URL.');
+      setState(() => _error = L10n.of(context).t('server.invalid'));
       return;
     }
     setState(() {
@@ -198,69 +249,77 @@ class _ServerSetupState extends State<ServerSetup> {
       await widget.gateway.responders();
       await widget.onConnected(baseUrl);
     } catch (error) {
-      if (mounted) setState(() => _error = error.toString());
+      if (mounted) setState(() => _error = error);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    body: SafeArea(
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(24, 34, 24, 24),
-        children: [
-          const BrandHeader(label: 'FIELD RESPONSE'),
-          const SizedBox(height: 56),
-          Text(
-            'Connect to AMAN',
-            style: Theme.of(context).textTheme.headlineMedium,
-          ),
-          const SizedBox(height: 10),
-          const Text(
-            'Enter the IP address shown as “Phone API” when the operations console starts.',
-            style: TextStyle(color: muted),
-          ),
-          const SizedBox(height: 28),
-          TextField(
-            controller: _controller,
-            enabled: !_busy,
-            keyboardType: TextInputType.url,
-            autocorrect: false,
-            textInputAction: TextInputAction.done,
-            onSubmitted: (_) => _connect(),
-            decoration: const InputDecoration(
-              labelText: 'Computer IP address',
-              hintText: '192.168.1.20',
-              prefixIcon: Icon(Icons.lan_outlined),
+  Widget build(BuildContext context) {
+    final s = L10n.of(context);
+    return Scaffold(
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(24, 34, 24, 24),
+          children: [
+            BrandHeader(label: s.t('brand.fieldResponse')),
+            const SizedBox(height: 56),
+            Text(
+              s.t('server.title'),
+              style: Theme.of(context).textTheme.headlineMedium,
             ),
-          ),
-          if (_error != null) ...[
-            const SizedBox(height: 12),
-            Text(_error!, style: const TextStyle(color: Color(0xFFF09A9A))),
-          ],
-          const SizedBox(height: 18),
-          ElevatedButton(
-            onPressed: _busy ? null : _connect,
-            child: Text(_busy ? 'CONNECTING…' : 'CONNECT'),
-          ),
-          if (widget.onCancel != null) ...[
-            const SizedBox(height: 8),
-            TextButton(
-              onPressed: _busy ? null : widget.onCancel,
-              child: const Text('CANCEL'),
+            const SizedBox(height: 10),
+            Text(s.t('server.blurb'), style: const TextStyle(color: muted)),
+            const SizedBox(height: 28),
+            TextField(
+              controller: _controller,
+              enabled: !_busy,
+              keyboardType: TextInputType.url,
+              autocorrect: false,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => _connect(),
+              // An address is typed and read left to right whatever the app
+              // language is.
+              textDirection: TextDirection.ltr,
+              decoration: InputDecoration(
+                labelText: s.t('server.field'),
+                hintText: '192.168.1.20',
+                prefixIcon: const Icon(Icons.lan_outlined),
+              ),
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 12),
+              Text(
+                describeError(s, _error!),
+                style: const TextStyle(color: Color(0xFFF09A9A)),
+              ),
+            ],
+            const SizedBox(height: 18),
+            ElevatedButton(
+              onPressed: _busy ? null : _connect,
+              child: Text(
+                _busy ? s.t('server.connecting') : s.t('server.connect'),
+              ),
+            ),
+            if (widget.onCancel != null) ...[
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: _busy ? null : widget.onCancel,
+                child: Text(s.t('common.cancel')),
+              ),
+            ],
+            const SizedBox(height: 16),
+            Text(
+              s.t('server.sameNetwork'),
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: muted, fontSize: 12),
             ),
           ],
-          const SizedBox(height: 16),
-          const Text(
-            'The phone and computer must be on the same Wi-Fi network.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: muted, fontSize: 12),
-          ),
-        ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class ResponderEntry extends StatefulWidget {
@@ -280,7 +339,7 @@ class _ResponderEntryState extends State<ResponderEntry> {
   List<Responder>? _responders;
   String? _selectedId;
   String? _selectedEventId;
-  String? _error;
+  Object? _error;
 
   @override
   void initState() {
@@ -320,7 +379,7 @@ class _ResponderEntryState extends State<ResponderEntry> {
         _error = null;
       });
     } catch (error) {
-      if (mounted) setState(() => _error = error.toString());
+      if (mounted) setState(() => _error = error);
     }
   }
 
@@ -334,6 +393,7 @@ class _ResponderEntryState extends State<ResponderEntry> {
 
   @override
   Widget build(BuildContext context) {
+    final s = L10n.of(context);
     final allResponders = _responders ?? const <Responder>[];
     final currentResponders = allResponders
         .where((item) => item.eventStatus != 'stopped')
@@ -371,38 +431,41 @@ class _ResponderEntryState extends State<ResponderEntry> {
             padding: const EdgeInsets.fromLTRB(22, 34, 22, 24),
             children: [
               BrandHeader(
-                label: 'FIELD RESPONSE',
+                label: s.t('brand.fieldResponse'),
                 onServer: widget.onChangeServer,
               ),
               const SizedBox(height: 48),
               Text(
-                'Choose your profile',
+                s.t('entry.title'),
                 style: Theme.of(context).textTheme.headlineMedium,
               ),
               const SizedBox(height: 10),
-              const Text(
-                'Select the current event, then choose your name.',
-                style: TextStyle(color: muted),
-              ),
+              Text(s.t('entry.blurb'), style: const TextStyle(color: muted)),
               const SizedBox(height: 28),
               if (_responders == null && _error == null)
                 const Center(child: CircularProgressIndicator()),
-              if (_error != null) ErrorCard(message: _error!, onRetry: _load),
+              if (_error != null) ErrorCard(error: _error!, onRetry: _load),
               if (_responders?.isEmpty ?? false) const EmptyDirectoryCard(),
               if (events.isNotEmpty) ...[
                 DropdownButtonFormField<String>(
                   initialValue: selectedEventId,
                   isExpanded: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Rehearsal event',
-                    prefixIcon: Icon(Icons.event_outlined),
+                  decoration: InputDecoration(
+                    labelText: s.t('entry.event'),
+                    prefixIcon: const Icon(Icons.event_outlined),
                   ),
                   items: events
                       .map(
                         (event) => DropdownMenuItem(
                           value: event.eventId,
                           child: Text(
-                            '${event.eventLabel} · ${event.eventStatus.toUpperCase()}',
+                            s.t('entry.eventOption', {
+                              'event': s.eventLabel(
+                                event.eventNumber,
+                                event.eventName,
+                              ),
+                              'status': s.runStatus(event.eventStatus),
+                            }),
                           ),
                         ),
                       )
@@ -412,7 +475,7 @@ class _ResponderEntryState extends State<ResponderEntry> {
                 ),
                 const SizedBox(height: 20),
                 Text(
-                  'RESPONDER',
+                  s.t('entry.responder'),
                   style: Theme.of(context).textTheme.labelSmall
                       ?.copyWith(color: muted, letterSpacing: 1.3),
                 ),
@@ -457,7 +520,7 @@ class _MissionHomeState extends State<MissionHome> {
   Timer? _timer;
   List<Mission> _missions = const [];
   List<MissionMessage> _messages = const [];
-  String? _error;
+  Object? _error;
   bool _busy = false;
   bool _loadedOnce = false;
   DateTime? _lastSyncAt;
@@ -526,7 +589,7 @@ class _MissionHomeState extends State<MissionHome> {
       });
       if (hasNewMission) await _announce(arrived.first);
     } catch (error) {
-      if (mounted) setState(() => _error = error.toString());
+      if (mounted) setState(() => _error = error);
     }
   }
 
@@ -537,11 +600,9 @@ class _MissionHomeState extends State<MissionHome> {
     if (!mounted) return;
     if (_takeoverOpen || mission.acknowledged) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'New assignment received. Review the destination and acknowledge.',
-          ),
-          backgroundColor: Color(0xFF174B40),
+        SnackBar(
+          content: Text(L10n.of(context).t('mission.newSnack')),
+          backgroundColor: const Color(0xFF174B40),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -569,7 +630,7 @@ class _MissionHomeState extends State<MissionHome> {
       await action();
       await _refresh();
     } catch (error) {
-      if (mounted) setState(() => _error = error.toString());
+      if (mounted) setState(() => _error = error);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -584,6 +645,7 @@ class _MissionHomeState extends State<MissionHome> {
 
   @override
   Widget build(BuildContext context) {
+    final s = L10n.of(context);
     final mission = _missions.firstOrNull;
     final keyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
     return Scaffold(
@@ -604,14 +666,14 @@ class _MissionHomeState extends State<MissionHome> {
               if (_error != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 14),
-                  child: ErrorCard(message: _error!, onRetry: _refresh),
+                  child: ErrorCard(error: _error!, onRetry: _refresh),
                 ),
               const SizedBox(height: 24),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'Current assignment',
+                    s.t('mission.current'),
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   ConnectionPill(
@@ -635,7 +697,7 @@ class _MissionHomeState extends State<MissionHome> {
                 Row(
                   children: [
                     Text(
-                      'Mission channel',
+                      s.t('mission.channel'),
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     if (_unread > 0) ...[
@@ -655,7 +717,8 @@ class _MissionHomeState extends State<MissionHome> {
               const SizedBox(height: 28),
               Center(
                 child: Text(
-                  'Refreshes every 5 seconds · Pull down to refresh',
+                  s.t('mission.refreshNote'),
+                  textAlign: TextAlign.center,
                   style: const TextStyle(color: muted, fontSize: 12),
                 ),
               ),
@@ -669,15 +732,18 @@ class _MissionHomeState extends State<MissionHome> {
               mission: mission,
               busy: _busy,
               onAcknowledge: () => _acknowledge(mission),
+              // The report body is the responder's own words, so it is sent in
+              // the language they are working in; `kind` stays English because
+              // the console renders progress events from it, not from the text.
               onEnRoute: () => _report(
                 mission,
                 'en_route',
-                'Heading to ${mission.zoneName}.',
+                s.t('report.enRoute', {'zone': s.zoneLabel(mission.zoneName)}),
               ),
               onScene: () => _report(
                 mission,
                 'on_scene',
-                'On scene at ${mission.zoneName}. Beginning crowd response.',
+                s.t('report.onScene', {'zone': s.zoneLabel(mission.zoneName)}),
               ),
             ),
     );
@@ -694,63 +760,114 @@ class BrandHeader extends StatelessWidget {
   final VoidCallback? onAccount;
   final VoidCallback? onServer;
   @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      Container(
-        width: 36,
-        height: 36,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: mint,
-          borderRadius: BorderRadius.circular(10),
+  Widget build(BuildContext context) {
+    final s = L10n.of(context);
+    return Row(
+      children: [
+        Container(
+          width: 36,
+          height: 36,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: mint,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Text(
+            'A',
+            style: TextStyle(
+              color: ink,
+              fontWeight: FontWeight.w900,
+              fontSize: 18,
+            ),
+          ),
         ),
-        child: const Text(
-          'A',
+        const SizedBox(width: 11),
+        const Text(
+          'AMAN',
           style: TextStyle(
-            color: ink,
-            fontWeight: FontWeight.w900,
-            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.6,
+            fontSize: 17,
           ),
         ),
-      ),
-      const SizedBox(width: 11),
-      const Text(
-        'AMAN',
-        style: TextStyle(
-          fontWeight: FontWeight.w800,
-          letterSpacing: 1.6,
-          fontSize: 17,
-        ),
-      ),
-      const SizedBox(width: 10),
-      Container(width: 1, height: 18, color: line),
-      const SizedBox(width: 10),
-      Expanded(
-        child: Text(
-          label,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            color: muted,
-            letterSpacing: 1.3,
-            fontSize: 10,
-            fontWeight: FontWeight.w700,
+        const SizedBox(width: 10),
+        Container(width: 1, height: 18, color: line),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            label,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: muted,
+              // Arabic letters join; spacing them out breaks the word.
+              letterSpacing: s.isRtl ? 0 : 1.3,
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ),
+        const LanguageSwitch(),
+        if (onAccount != null)
+          IconButton(
+            tooltip: s.t('brand.switchResponder'),
+            onPressed: onAccount,
+            icon: const Icon(Icons.manage_accounts_outlined),
+          ),
+        if (onServer != null)
+          IconButton(
+            tooltip: s.t('brand.changeServer'),
+            onPressed: onServer,
+            icon: const Icon(Icons.lan_outlined),
+          ),
+      ],
+    );
+  }
+}
+
+/// Both languages stay on screen, each written in its own script, so a
+/// responder picks theirs without having to read the other one first.
+class LanguageSwitch extends StatelessWidget {
+  const LanguageSwitch({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final scope = L10n.maybeOf(context);
+    if (scope == null) return const SizedBox.shrink();
+    final active = scope.strings.language;
+    return Semantics(
+      label: scope.strings.t('brand.language'),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: line),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final language in supportedLanguages)
+              InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: () => scope.onChangeLanguage(language),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 6,
+                  ),
+                  child: Text(
+                    languageNames[language]!,
+                    style: TextStyle(
+                      color: language == active ? mint : muted,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
-      if (onAccount != null)
-        IconButton(
-          tooltip: 'Switch responder',
-          onPressed: onAccount,
-          icon: const Icon(Icons.manage_accounts_outlined),
-        ),
-      if (onServer != null)
-        IconButton(
-          tooltip: 'Change server',
-          onPressed: onServer,
-          icon: const Icon(Icons.lan_outlined),
-        ),
-    ],
-  );
+    );
+  }
 }
 
 class ResponderTile extends StatelessWidget {
@@ -791,7 +908,7 @@ class ResponderTile extends StatelessWidget {
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    responder.roleLabel,
+                    L10n.of(context).role(responder.role),
                     style: const TextStyle(color: muted),
                   ),
                 ],
@@ -815,86 +932,93 @@ class MissionCard extends StatelessWidget {
   final Mission mission;
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(20),
-    decoration: BoxDecoration(
-      color: surface,
-      borderRadius: BorderRadius.circular(18),
-      border: Border.all(
-        color: mission.acknowledged ? line : const Color(0xFF9C7732),
-      ),
-      boxShadow: const [
-        BoxShadow(
-          color: Color(0x33000000),
-          blurRadius: 24,
-          offset: Offset(0, 12),
+  Widget build(BuildContext context) {
+    final s = L10n.of(context);
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: mission.acknowledged ? line : const Color(0xFF9C7732),
         ),
-      ],
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            StatusPill(
-              value: mission.acknowledged ? 'ACKNOWLEDGED' : 'ACTION REQUIRED',
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x33000000),
+            blurRadius: 24,
+            offset: Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              StatusPill(
+                value: mission.acknowledged
+                    ? s.t('mission.acknowledged')
+                    : s.t('mission.actionRequired'),
+              ),
+              const Spacer(),
+              if (mission.simulated)
+                Text(
+                  s.t('mission.rehearsal'),
+                  style: TextStyle(
+                    color: muted,
+                    fontSize: 10,
+                    letterSpacing: s.isRtl ? 0 : 1.2,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Text(
+            s.t('mission.reportTo'),
+            style: TextStyle(
+              color: muted,
+              fontSize: 10,
+              letterSpacing: s.isRtl ? 0 : 1.6,
+              fontWeight: FontWeight.w700,
             ),
-            const Spacer(),
-            if (mission.simulated)
-              const Text(
-                'REHEARSAL',
-                style: TextStyle(
-                  color: muted,
-                  fontSize: 10,
-                  letterSpacing: 1.2,
-                  fontWeight: FontWeight.w700,
+          ),
+          const SizedBox(height: 7),
+          Text(
+            s.zoneLabel(mission.zoneName),
+            style: Theme.of(context).textTheme.headlineMedium,
+          ),
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              const Icon(
+                Icons.location_searching_rounded,
+                color: mint,
+                size: 20,
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Text(
+                  locationCopy(s, mission),
+                  style: const TextStyle(color: muted),
                 ),
               ),
-          ],
-        ),
-        const SizedBox(height: 24),
-        const Text(
-          'REPORT TO',
-          style: TextStyle(
-            color: muted,
-            fontSize: 10,
-            letterSpacing: 1.6,
-            fontWeight: FontWeight.w700,
+            ],
           ),
-        ),
-        const SizedBox(height: 7),
-        Text(
-          mission.zoneName,
-          style: Theme.of(context).textTheme.headlineMedium,
-        ),
-        const SizedBox(height: 18),
-        Row(
-          children: [
-            const Icon(Icons.location_searching_rounded, color: mint, size: 20),
-            const SizedBox(width: 9),
-            Expanded(
-              child: Text(
-                locationCopy(mission),
-                style: const TextStyle(color: muted),
-              ),
-            ),
+          if (mission.onScene) ...[
+            const SizedBox(height: 22),
+            SuccessStrip(text: s.t('mission.onSceneStrip')),
           ],
-        ),
-        if (mission.onScene) ...[
-          const SizedBox(height: 22),
-          const SuccessStrip(text: 'On scene · Crowd response in progress'),
         ],
-      ],
-    ),
-  );
+      ),
+    );
+  }
 }
 
-String locationCopy(Mission mission) {
-  if (mission.onScene) return 'Arrival verified for the assigned area.';
-  if (mission.arrivalStatus == 'TRUE') {
-    return 'Location verified. Confirm when you are ready to begin.';
-  }
-  return 'Proceed to the assigned area. Arrival will be verified automatically.';
+String locationCopy(Strings s, Mission mission) {
+  if (mission.onScene) return s.t('mission.locationVerifiedArrival');
+  if (mission.arrivalStatus == 'TRUE') return s.t('mission.locationVerified');
+  return s.t('mission.locationProceed');
 }
 
 // The primary action is pinned to the bottom of the screen so it is never
@@ -916,6 +1040,7 @@ class MissionActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final s = L10n.of(context);
     if (mission.onScene) return const SizedBox.shrink();
     return Container(
       decoration: const BoxDecoration(
@@ -943,14 +1068,14 @@ class MissionActions extends StatelessWidget {
                             fontWeight: FontWeight.w800,
                           ),
                         ),
-                        child: const Text('HEADING THERE'),
+                        child: Text(s.t('action.headingThere')),
                       ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: ElevatedButton(
                         onPressed: busy ? null : onScene,
-                        child: const Text('ON SCENE'),
+                        child: Text(s.t('action.onScene')),
                       ),
                     ),
                   ],
@@ -958,7 +1083,7 @@ class MissionActions extends StatelessWidget {
               : ElevatedButton(
                   onPressed: busy ? null : onAcknowledge,
                   child: Text(
-                    busy ? 'UPDATING…' : 'ACKNOWLEDGE ASSIGNMENT',
+                    busy ? s.t('action.updating') : s.t('action.acknowledge'),
                   ),
                 ),
         ),
@@ -1011,88 +1136,93 @@ class _NewAssignmentScreenState extends State<NewAssignmentScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    backgroundColor: ink,
-    body: SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const StatusPill(value: 'NEW ASSIGNMENT'),
-                const Spacer(),
-                if (widget.mission.simulated)
-                  const Text(
-                    'REHEARSAL',
-                    style: TextStyle(
-                      color: muted,
-                      fontSize: 10,
-                      letterSpacing: 1.2,
-                      fontWeight: FontWeight.w700,
+  Widget build(BuildContext context) {
+    final s = L10n.of(context);
+    return Scaffold(
+      backgroundColor: ink,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  StatusPill(value: s.t('mission.new')),
+                  const Spacer(),
+                  if (widget.mission.simulated)
+                    Text(
+                      s.t('mission.rehearsal'),
+                      style: TextStyle(
+                        color: muted,
+                        fontSize: 10,
+                        letterSpacing: s.isRtl ? 0 : 1.2,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                ],
+              ),
+              const Spacer(flex: 2),
+              const Icon(
+                Icons.notifications_active_rounded,
+                color: Color(0xFFEBC56E),
+                size: 34,
+              ),
+              const SizedBox(height: 20),
+              Text(
+                s.t('mission.reportTo'),
+                style: TextStyle(
+                  color: muted,
+                  fontSize: 11,
+                  letterSpacing: s.isRtl ? 0 : 1.8,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                s.zoneLabel(widget.mission.zoneName),
+                style: TextStyle(
+                  fontSize: 40,
+                  height: 1.1,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: s.isRtl ? 0 : -1.2,
+                ),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  const Icon(
+                    Icons.location_searching_rounded,
+                    color: mint,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Text(
+                      locationCopy(s, widget.mission),
+                      style: const TextStyle(color: muted),
                     ),
                   ),
-              ],
-            ),
-            const Spacer(flex: 2),
-            const Icon(
-              Icons.notifications_active_rounded,
-              color: Color(0xFFEBC56E),
-              size: 34,
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              'REPORT TO',
-              style: TextStyle(
-                color: muted,
-                fontSize: 11,
-                letterSpacing: 1.8,
-                fontWeight: FontWeight.w700,
+                ],
               ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              widget.mission.zoneName,
-              style: const TextStyle(
-                fontSize: 40,
-                height: 1.1,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -1.2,
+              const Spacer(flex: 3),
+              ElevatedButton(
+                onPressed: _busy ? null : _acknowledge,
+                child: Text(
+                  _busy ? s.t('action.updating') : s.t('action.acknowledge'),
+                ),
               ),
-            ),
-            const SizedBox(height: 18),
-            Row(
-              children: [
-                const Icon(
-                  Icons.location_searching_rounded,
-                  color: mint,
-                  size: 20,
-                ),
-                const SizedBox(width: 9),
-                Expanded(
-                  child: Text(
-                    locationCopy(widget.mission),
-                    style: const TextStyle(color: muted),
-                  ),
-                ),
-              ],
-            ),
-            const Spacer(flex: 3),
-            ElevatedButton(
-              onPressed: _busy ? null : _acknowledge,
-              child: Text(_busy ? 'UPDATING…' : 'ACKNOWLEDGE ASSIGNMENT'),
-            ),
-            const SizedBox(height: 8),
-            TextButton(
-              onPressed: _busy ? null : () => Navigator.of(context).pop(),
-              child: const Text('VIEW DETAILS FIRST'),
-            ),
-          ],
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: _busy ? null : () => Navigator.of(context).pop(),
+                child: Text(s.t('action.viewDetails')),
+              ),
+            ],
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 class MissionThread extends StatefulWidget {
   const MissionThread({
@@ -1152,24 +1282,21 @@ class _MissionThreadState extends State<MissionThread> {
     return '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
   }
 
-  static String _progressLabel(String kind) => switch (kind) {
-    'en_route' => 'Heading there',
-    'on_scene' => 'On scene',
-    _ => kind.replaceAll('_', ' '),
-  };
-
-  Widget _entry(MissionMessage message) {
+  Widget _entry(Strings s, MissionMessage message) {
     // Progress events are the responder's own state changes, not conversation.
     if (!message.isInstruction && message.kind != 'message') {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 8),
         child: Center(
           child: Text(
-            '${_progressLabel(message.kind)} · ${_clock(message.createdAt)}',
-            style: const TextStyle(
+            s.t('thread.entry', {
+              'sender': s.kind(message.kind),
+              'time': _clock(message.createdAt),
+            }),
+            style: TextStyle(
               color: muted,
               fontSize: 11,
-              letterSpacing: 0.6,
+              letterSpacing: s.isRtl ? 0 : 0.6,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -1185,7 +1312,10 @@ class _MissionThreadState extends State<MissionThread> {
             : CrossAxisAlignment.end,
         children: [
           Text(
-            '${fromControl ? 'Control room' : 'You'} · ${_clock(message.createdAt)}',
+            s.t('thread.entry', {
+              'sender': fromControl ? s.t('thread.controlRoom') : s.t('thread.you'),
+              'time': _clock(message.createdAt),
+            }),
             style: const TextStyle(color: muted, fontSize: 11),
           ),
           const SizedBox(height: 4),
@@ -1213,72 +1343,77 @@ class _MissionThreadState extends State<MissionThread> {
   }
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      color: surface,
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: line),
-    ),
-    child: Column(
-      children: [
-        if (widget.messages.isEmpty)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 18),
-            child: Text(
-              'No messages yet. Instructions from the control room will appear here.',
-              style: TextStyle(color: muted),
-            ),
-          )
-        else
-          // The thread scrolls inside its own box so a long conversation never
-          // pushes the assignment off the screen.
-          GestureDetector(
-            behavior: HitTestBehavior.translucent,
-            onTap: widget.onSeen,
-            child: NotificationListener<ScrollNotification>(
-              onNotification: (_) {
-                widget.onSeen();
-                return false;
-              },
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 280),
-                child: ListView(
-                  controller: _scroll,
-                  shrinkWrap: true,
-                  padding: EdgeInsets.zero,
-                  children: widget.messages.map(_entry).toList(),
+  Widget build(BuildContext context) {
+    final s = L10n.of(context);
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: line),
+      ),
+      child: Column(
+        children: [
+          if (widget.messages.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 18),
+              child: Text(
+                s.t('thread.empty'),
+                style: const TextStyle(color: muted),
+              ),
+            )
+          else
+            // The thread scrolls inside its own box so a long conversation
+            // never pushes the assignment off the screen.
+            GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: widget.onSeen,
+              child: NotificationListener<ScrollNotification>(
+                onNotification: (_) {
+                  widget.onSeen();
+                  return false;
+                },
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 280),
+                  child: ListView(
+                    controller: _scroll,
+                    shrinkWrap: true,
+                    padding: EdgeInsets.zero,
+                    children: widget.messages
+                        .map((message) => _entry(s, message))
+                        .toList(),
+                  ),
                 ),
               ),
             ),
+          const Divider(color: line, height: 28),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _controller,
+                  enabled: !widget.disabled,
+                  textInputAction: TextInputAction.send,
+                  onTap: widget.onSeen,
+                  onSubmitted: (_) => _send(),
+                  decoration: InputDecoration(
+                    hintText: s.t('thread.hint'),
+                    isDense: true,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton.filled(
+                tooltip: s.t('thread.send'),
+                onPressed: widget.disabled ? null : _send,
+                icon: const Icon(Icons.arrow_upward_rounded),
+              ),
+            ],
           ),
-        const Divider(color: line, height: 28),
-        Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _controller,
-                enabled: !widget.disabled,
-                textInputAction: TextInputAction.send,
-                onTap: widget.onSeen,
-                onSubmitted: (_) => _send(),
-                decoration: const InputDecoration(
-                  hintText: 'Update control room',
-                  isDense: true,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            IconButton.filled(
-              tooltip: 'Send update',
-              onPressed: widget.disabled ? null : _send,
-              icon: const Icon(Icons.arrow_upward_rounded),
-            ),
-          ],
-        ),
-      ],
-    ),
-  );
+        ],
+      ),
+    );
+  }
 }
 class DemoNotice extends StatelessWidget {
   const DemoNotice({super.key});
@@ -1290,14 +1425,14 @@ class DemoNotice extends StatelessWidget {
       borderRadius: BorderRadius.circular(10),
       border: Border.all(color: const Color(0xFF285344)),
     ),
-    child: const Row(
+    child: Row(
       children: [
-        Icon(Icons.science_outlined, color: mint, size: 18),
-        SizedBox(width: 9),
+        const Icon(Icons.science_outlined, color: mint, size: 18),
+        const SizedBox(width: 9),
         Expanded(
           child: Text(
-            'REHEARSAL · Missions and locations are simulated.',
-            style: TextStyle(
+            L10n.of(context).t('demo.notice'),
+            style: const TextStyle(
               fontSize: 12,
               color: Color(0xFFB7CFC7),
               fontWeight: FontWeight.w600,
@@ -1319,19 +1454,19 @@ class EmptyMissionCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(18),
       border: Border.all(color: line),
     ),
-    child: const Column(
+    child: Column(
       children: [
-        Icon(Icons.check_circle_outline_rounded, color: mint, size: 38),
-        SizedBox(height: 14),
+        const Icon(Icons.check_circle_outline_rounded, color: mint, size: 38),
+        const SizedBox(height: 14),
         Text(
-          'No active assignment',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+          L10n.of(context).t('mission.emptyTitle'),
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
         ),
-        SizedBox(height: 7),
+        const SizedBox(height: 7),
         Text(
-          'Remain available. New assignments appear here automatically.',
+          L10n.of(context).t('mission.emptyBody'),
           textAlign: TextAlign.center,
-          style: TextStyle(color: muted),
+          style: const TextStyle(color: muted),
         ),
       ],
     ),
@@ -1348,19 +1483,19 @@ class EmptyDirectoryCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(18),
       border: Border.all(color: line),
     ),
-    child: const Column(
+    child: Column(
       children: [
-        Icon(Icons.event_busy_outlined, color: muted, size: 34),
-        SizedBox(height: 12),
+        const Icon(Icons.event_busy_outlined, color: muted, size: 34),
+        const SizedBox(height: 12),
         Text(
-          'No event available',
-          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+          L10n.of(context).t('directory.emptyTitle'),
+          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
         ),
-        SizedBox(height: 6),
+        const SizedBox(height: 6),
         Text(
-          'Start a rehearsal from the operations console, then refresh.',
+          L10n.of(context).t('directory.emptyBody'),
           textAlign: TextAlign.center,
-          style: TextStyle(color: muted),
+          style: const TextStyle(color: muted),
         ),
       ],
     ),
@@ -1368,24 +1503,31 @@ class EmptyDirectoryCard extends StatelessWidget {
 }
 
 class ErrorCard extends StatelessWidget {
-  const ErrorCard({super.key, required this.message, required this.onRetry});
-  final String message;
+  const ErrorCard({super.key, required this.error, required this.onRetry});
+
+  /// The failure itself, not its text: the app translates the ones it raised
+  /// and passes a backend message through as it arrived.
+  final Object error;
   final VoidCallback onRetry;
+
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(15),
-    decoration: BoxDecoration(
-      color: const Color(0xFF351C26),
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: const Color(0xFF673242)),
-    ),
-    child: Row(
-      children: [
-        Expanded(child: Text(message)),
-        TextButton(onPressed: onRetry, child: const Text('Retry')),
-      ],
-    ),
-  );
+  Widget build(BuildContext context) {
+    final s = L10n.of(context);
+    return Container(
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: const Color(0xFF351C26),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF673242)),
+      ),
+      child: Row(
+        children: [
+          Expanded(child: Text(describeError(s, error))),
+          TextButton(onPressed: onRetry, child: Text(s.t('common.retry'))),
+        ],
+      ),
+    );
+  }
 }
 
 // Reports what the poll loop actually did. A hardcoded "CONNECTED" is worse
@@ -1419,15 +1561,16 @@ class _ConnectionPillState extends State<ConnectionPill> {
     super.dispose();
   }
 
-  static String _ago(Duration age) {
-    if (age.inSeconds < 5) return 'just now';
-    if (age.inSeconds < 60) return '${age.inSeconds}s ago';
-    if (age.inMinutes < 60) return '${age.inMinutes}m ago';
-    return '${age.inHours}h ago';
+  static String _ago(Strings s, Duration age) {
+    if (age.inSeconds < 5) return s.t('link.justNow');
+    if (age.inSeconds < 60) return s.t('link.secondsAgo', {'count': age.inSeconds});
+    if (age.inMinutes < 60) return s.t('link.minutesAgo', {'count': age.inMinutes});
+    return s.t('link.hoursAgo', {'count': age.inHours});
   }
 
   @override
   Widget build(BuildContext context) {
+    final s = L10n.of(context);
     final syncedAt = widget.lastSyncAt;
     final age = syncedAt == null ? null : DateTime.now().difference(syncedAt);
     const amber = Color(0xFFEBC56E);
@@ -1435,16 +1578,16 @@ class _ConnectionPillState extends State<ConnectionPill> {
     final String label;
     if (age == null) {
       colour = muted;
-      label = 'CONNECTING';
+      label = s.t('link.connecting');
     } else if (widget.offline) {
       colour = amber;
-      label = age.inSeconds > 60 ? 'OFFLINE' : 'RECONNECTING';
+      label = age.inSeconds > 60 ? s.t('link.offline') : s.t('link.reconnecting');
     } else if (age.inSeconds > 20) {
       colour = amber;
-      label = 'DELAYED';
+      label = s.t('link.delayed');
     } else {
       colour = mint;
-      label = 'LIVE';
+      label = s.t('link.live');
     }
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -1452,11 +1595,13 @@ class _ConnectionPillState extends State<ConnectionPill> {
         Icon(Icons.circle, size: 8, color: colour),
         const SizedBox(width: 7),
         Text(
-          age == null ? label : '$label · ${_ago(age)}',
-          style: const TextStyle(
+          age == null
+              ? label
+              : s.t('link.state', {'state': label, 'age': _ago(s, age)}),
+          style: TextStyle(
             color: muted,
             fontSize: 10,
-            letterSpacing: 1.1,
+            letterSpacing: s.isRtl ? 0 : 1.1,
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -1476,11 +1621,11 @@ class UnreadBadge extends StatelessWidget {
       borderRadius: BorderRadius.circular(10),
     ),
     child: Text(
-      '$count NEW',
-      style: const TextStyle(
-        color: Color(0xFFEBC56E),
+      L10n.of(context).t('thread.unread', {'count': count}),
+      style: TextStyle(
+        color: const Color(0xFFEBC56E),
         fontSize: 10,
-        letterSpacing: 1,
+        letterSpacing: L10n.of(context).isRtl ? 0 : 1,
         fontWeight: FontWeight.w800,
       ),
     ),
@@ -1498,10 +1643,10 @@ class StatusPill extends StatelessWidget {
     ),
     child: Text(
       value,
-      style: const TextStyle(
-        color: Color(0xFFEBC56E),
+      style: TextStyle(
+        color: const Color(0xFFEBC56E),
         fontSize: 10,
-        letterSpacing: 1,
+        letterSpacing: L10n.of(context).isRtl ? 0 : 1,
         fontWeight: FontWeight.w800,
       ),
     ),

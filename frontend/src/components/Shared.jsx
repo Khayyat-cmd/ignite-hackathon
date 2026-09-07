@@ -1,15 +1,17 @@
+import { useI18n } from '../i18n';
+
 export function Notice({ children, error = false }) {
   if (!children) return null;
   return <p className={error ? 'notice error' : 'notice'} role={error ? 'alert' : 'status'}>{children}</p>;
 }
 
-export function Badge({ value = 'unknown', tone }) {
+// `value` stays the raw backend vocabulary so the risk colour keeps deriving
+// from it; only the text is translated. `label` overrides the text where the
+// badge reads as a phrase rather than a single term.
+export function Badge({ value = 'unknown', tone, label }) {
+  const { term } = useI18n();
   const key = String(tone ?? value).toLowerCase().replace(/\s+/g, '_');
-  return <span className={`badge badge-${key}`}>{String(value).replaceAll('_', ' ')}</span>;
-}
-
-export function time(value) {
-  return value ? new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }) : 'No reading';
+  return <span className={`badge badge-${key}`}>{label ?? term(value)}</span>;
 }
 
 export function clock(seconds = 0) {
@@ -47,10 +49,16 @@ export function Sparkline({ samples = [] }) {
 }
 
 export function TrendTag({ trend }) {
+  const { t, dir } = useI18n();
   if (!trend) return null;
-  const arrow = trend.direction === 'up' ? '↑' : trend.direction === 'down' ? '↓' : '→';
-  const amount = trend.direction === 'flat' ? 'steady' : `${trend.delta > 0 ? '+' : '−'}${Math.abs(trend.delta).toFixed(2)} /m²`;
-  return <span className={`trend trend-${trend.direction}`}>{arrow} {amount} · {trend.seconds}s</span>;
+  // The flat arrow points along the reading direction, so "no change" never
+  // looks like it is pointing back at the previous sample.
+  const flat = dir === 'rtl' ? '←' : '→';
+  const arrow = trend.direction === 'up' ? '↑' : trend.direction === 'down' ? '↓' : flat;
+  const amount = trend.direction === 'flat'
+    ? t('trend.steady')
+    : `${trend.delta > 0 ? '+' : '−'}${Math.abs(trend.delta).toFixed(2)} /m²`;
+  return <span className={`trend trend-${trend.direction}`} dir="ltr">{arrow} {amount} · {t('trend.seconds', { count: trend.seconds })}</span>;
 }
 
 // A short two-tone alert. Created per call so a suspended context from an

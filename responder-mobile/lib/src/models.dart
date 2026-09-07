@@ -19,12 +19,6 @@ class Responder {
   final int? eventNumber;
   final String eventStatus;
 
-  String get eventLabel =>
-      eventNumber == null ? eventName : 'Event #$eventNumber · $eventName';
-
-  String get roleLabel =>
-      role == 'crowd_marshal' ? 'Crowd responder' : role.replaceAll('_', ' ');
-
   factory Responder.fromJson(Map<String, dynamic> json) {
     final event = json['event'] as Map<String, dynamic>? ?? const {};
     return Responder(
@@ -33,7 +27,7 @@ class Responder {
       role: (json['role'] as String?) ?? 'responder',
       available: json['available'] as bool? ?? false,
       eventId: (event['id'] as String?) ?? 'unknown',
-      eventName: (event['name'] as String?) ?? 'Rehearsal event',
+      eventName: (event['name'] as String?) ?? '',
       eventNumber: event['number'] as int?,
       eventStatus: (event['status'] as String?) ?? 'stopped',
     );
@@ -67,7 +61,7 @@ class Mission {
     return Mission(
       id: json['id'] as String,
       status: json['status'] as String,
-      zoneName: (destination['name'] as String?) ?? 'Assigned area',
+      zoneName: (destination['name'] as String?) ?? '',
       simulated: destination['simulated'] as bool? ?? false,
       arrivalStatus: verification?['verificationResult'] as String?,
       workStartedAt: json['workStartedAt'] as String?,
