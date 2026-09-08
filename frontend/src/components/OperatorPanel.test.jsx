@@ -23,6 +23,21 @@ describe('Command center', () => {
     expect(html).toContain('East Entrance');
     expect(html).toContain('ZONE SCHEMATIC');
   });
+  it('lifts a zone label that would be painted over by its neighbour', () => {
+    // A narrow zone beside a wide one: the label is wider than the zone it names.
+    const narrow = { ...zone, id: 'east', name: 'East Entrance', boundary: [{ latitude: 33.9, longitude: 35.5 }, { latitude: 33.9, longitude: 35.5004 }, { latitude: 33.901, longitude: 35.5004 }, { latitude: 33.901, longitude: 35.5 }] };
+    const wide = { ...zone, id: 'north', name: 'North Concourse', risk_level: 'normal', latest_reading: { deviceCount: 3001, densityPerSquareMeter: 1.25 }, boundary: [{ latitude: 33.9, longitude: 35.5004 }, { latitude: 33.9, longitude: 35.503 }, { latitude: 33.901, longitude: 35.503 }, { latitude: 33.901, longitude: 35.5004 }] };
+    const html = renderToStaticMarkup(<OperatorPanel data={{ ...base, zones: [narrow, wide] }} />);
+    const rows = [...html.matchAll(/<text x="[\d.]+" y="([\d.]+)">([^<]+)</g)].map(([, y, name]) => [name, Number(y)]);
+    const east = rows.find(([name]) => name === 'East Entrance');
+    const north = rows.find(([name]) => name === 'North Concourse');
+    expect(east).toBeDefined();
+    expect(north).toBeDefined();
+    expect(east[1]).not.toBe(north[1]);
+    // Both counts survive; the old layout clipped the narrow zone's.
+    expect(html).toContain('2,100');
+    expect(html).toContain('3,001');
+  });
   it('tells the operator what the Unity second screen is framing', () => {
     const venue = renderToStaticMarkup(<OperatorPanel data={base} />);
     expect(venue).toContain('Second screen · whole venue');
