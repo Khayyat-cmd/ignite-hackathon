@@ -5,6 +5,11 @@ import { riskClass } from './Shared';
 const VIEW_W = 720;
 const VIEW_H = 350;
 const PAD = 16;
+// Label band above the polygons. GLYPH is a deliberate overestimate of average
+// glyph width at the widest breakpoint, so the layout errs towards a spare row
+// rather than towards two labels touching.
+const LABEL_ROW = 15;
+const GLYPH = 7.4;
 
 const finite = (value) => Number.isFinite(Number(value));
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -106,6 +111,24 @@ export default function VenueMap({
       });
   }, [incidents, centres]);
 
+  // A zone label is anchored to its own left edge, so a label wider than a narrow
+  // zone used to be painted over by its neighbour's: East Entrance read "East
+  // Entrance 9" instead of "901". Lay the labels out left to right and lift any
+  // that would collide onto the row above.
+  const labelRows = useMemo(() => {
+    const rowEnds = [];
+    const placed = {};
+    [...shapes].sort((a, b) => a.bounds.minX - b.bounds.minX).forEach(({ zone, bounds }) => {
+      const count = zone.latest_reading?.deviceCount == null ? '—' : n(zone.latest_reading.deviceCount);
+      const width = (zone.name.length + count.length + 2) * GLYPH;
+      let row = 0;
+      while (rowEnds[row] !== undefined && bounds.minX < rowEnds[row]) row += 1;
+      rowEnds[row] = bounds.minX + width;
+      placed[zone.id] = { count, y: Math.max(11, bounds.minY - 7 - row * LABEL_ROW) };
+    });
+    return placed;
+  }, [shapes, n]);
+
   const focusedMarker = markers.find((marker) => marker.incident.id === focusedIncidentId) || null;
   const focusedPin = pins.find((pin) => pin.responder.id === focusedResponderId) || null;
   const link = focusedMarker && focusedPin ? { from: focusedPin, to: focusedMarker } : null;
@@ -148,9 +171,9 @@ export default function VenueMap({
           className={`map-zone ${riskClass(zone.risk_level, stale)}${selectedId === zone.id ? ' map-selected' : ''}${linkedZoneId === zone.id ? ' map-linked' : ''}`}
         >
           <polygon points={points} />
-          <text x={bounds.minX} y={Math.max(11, bounds.minY - 7)}>
+          <text x={bounds.minX} y={labelRows[zone.id]?.y ?? Math.max(11, bounds.minY - 7)}>
             {zone.name}
-            <tspan className="map-count" dx="8">{zone.latest_reading?.deviceCount == null ? '—' : n(zone.latest_reading.deviceCount)}</tspan>
+            <tspan className="map-count" dx="8">{labelRows[zone.id]?.count ?? '—'}</tspan>
           </text>
         </g>)}
 
