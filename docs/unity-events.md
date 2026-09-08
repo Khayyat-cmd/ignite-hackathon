@@ -52,6 +52,19 @@ metres from `coordinateSystem.origin`, x east and z north. `x`/`z` are the centr
 the zone and `width`/`depth` its extent, so a camera can frame it with whatever
 padding the scene wants.
 
+## Snapshot paging
+
+`revision` is the snapshot version and the tick advances it every five seconds. Send
+it only when continuing a paged read with `offset` greater than zero, using the value
+from the response that gave you `nextOffset`; a mismatch there is a `409` telling you
+to restart at offset zero. On a first page it is ignored, so a client that keeps a
+revision between polls still gets a fresh snapshot rather than a permanent `409`.
+
+Responses are gzipped. A 10,000-attendee snapshot is about 2.4 MB uncompressed and
+roughly a tenth of that with `Accept-Encoding: gzip`, which most HTTP clients send by
+default. If a poll is slow, check that the client is not disabling compression, and
+prefer a smaller `limit` with paging over one large page.
+
 `sequence` increases by one per distinct focus change and never moves backwards.
 Apply a focus only when its `sequence` is higher than the last one applied, so a
 snapshot that arrives late cannot pull the camera back to an old zone. Reselecting

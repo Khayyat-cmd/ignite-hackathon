@@ -73,6 +73,25 @@ class UnityFocusTest extends TestCase
             ->assertJsonPath('focus.sequence', 2);
     }
 
+    public function test_a_stale_revision_only_blocks_a_continuation_page(): void
+    {
+        $runId = $this->postJson('/api/v1/demo/simulations', ['attendeeCount' => 600])
+            ->assertCreated()->json('id');
+        $run = SimulationRun::findOrFail($runId);
+        // Any revision that is not the run's current one: the tick moves it every
+        // five seconds, so a client's kept value is stale almost immediately.
+        $stale = $run->revision + 7;
+
+        // A client that kept the revision from its last poll still gets a fresh read.
+        $this->getJson("/api/v1/demo/simulations/{$run->id}?client=unity&offset=0&limit=10&revision={$stale}")
+            ->assertOk()
+            ->assertJsonPath('revision', $run->revision);
+
+        // Paging through a snapshot that has since moved on still has to restart.
+        $this->getJson("/api/v1/demo/simulations/{$run->id}?client=unity&offset=10&limit=10&revision={$stale}")
+            ->assertStatus(409);
+    }
+
     public function test_a_zone_from_another_event_is_rejected(): void
     {
         $runId = $this->postJson('/api/v1/demo/simulations', ['attendeeCount' => 600])

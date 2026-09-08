@@ -102,7 +102,10 @@ class SimulationController extends Controller
         $workspace->owns($run);
         $data = $request->validate(['client' => 'sometimes|in:operator,unity', 'offset' => 'sometimes|integer|min:0|max:10000',
             'limit' => 'sometimes|integer|min:1|max:10000', 'revision' => 'sometimes|integer|min:1']);
-        if (isset($data['revision'])) {
+        // `revision` pins one snapshot across a paged read. The tick advances it every
+        // five seconds, so enforcing it on the first page would reject every client
+        // that kept a revision from its last poll. A fresh read always starts clean.
+        if (isset($data['revision']) && (int) ($data['offset'] ?? 0) > 0) {
             abort_unless((int) $data['revision'] === $run->revision, 409, 'Snapshot changed. Restart reading at offset zero.');
         }
         $snapshot = $run->snapshot ?? [];
