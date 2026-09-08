@@ -19,6 +19,7 @@ export const en = {
   'topbar.pause': 'Pause',
   'topbar.stop': 'Stop',
   'topbar.reset': 'Reset',
+  'topbar.getResponderApp': 'Get responder app',
 
   'state.noLink': 'No link',
   'state.stale': 'Stale',
@@ -257,6 +258,7 @@ export const ar = {
   'topbar.pause': 'إيقاف مؤقت',
   'topbar.stop': 'إنهاء',
   'topbar.reset': 'إعادة ضبط',
+  'topbar.getResponderApp': 'تنزيل تطبيق المستجيب',
 
   'state.noLink': 'لا اتصال',
   'state.stale': 'قديمة',

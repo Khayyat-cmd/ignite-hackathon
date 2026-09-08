@@ -2,8 +2,12 @@ import 'package:flutter/material.dart';
 
 import 'src/api.dart';
 import 'src/responder_app.dart';
+import 'src/push_notifications.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(AmanResponderApp(gateway: AmanApi()));
+  final pushNotifications = await PushNotifications.initialize();
+  runApp(
+    AmanResponderApp(gateway: AmanApi(), pushNotifications: pushNotifications),
+  );
 }

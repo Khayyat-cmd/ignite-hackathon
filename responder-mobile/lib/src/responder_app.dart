@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -8,12 +9,17 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'api.dart';
 import 'l10n.dart';
 import 'models.dart';
+import 'push_notifications.dart';
 
 const ink = Color(0xFF080C1A);
 const surface = Color(0xFF11172A);
 const line = Color(0xFF28324D);
 const mint = Color(0xFF4DE0BA);
 const muted = Color(0xFF9CA8C2);
+// A new assignment is a life-safety event, so its screen leaves the calm palette.
+const alarmDeep = Color(0xFF4A0A06);
+const alarmBright = Color(0xFFC41E12);
+const alarmEdge = Color(0xFFFF6A5C);
 
 final ThemeData responderTheme = ThemeData(
   brightness: Brightness.dark,
@@ -49,8 +55,13 @@ final ThemeData responderTheme = ThemeData(
 );
 
 class AmanResponderApp extends StatefulWidget {
-  const AmanResponderApp({super.key, required this.gateway});
+  const AmanResponderApp({
+    super.key,
+    required this.gateway,
+    this.pushNotifications,
+  });
   final ResponderGateway gateway;
+  final PushNotifications? pushNotifications;
 
   @override
   State<AmanResponderApp> createState() => _AmanResponderAppState();
@@ -67,7 +78,9 @@ class _AmanResponderAppState extends State<AmanResponderApp> {
   }
 
   Future<void> _restore() async {
-    final saved = (await SharedPreferences.getInstance()).getString(preferenceKey);
+    final saved = (await SharedPreferences.getInstance()).getString(
+      preferenceKey,
+    );
     if (mounted && saved != null && supportedLanguages.contains(saved)) {
       setState(() => _language = saved);
     }
@@ -76,7 +89,10 @@ class _AmanResponderAppState extends State<AmanResponderApp> {
   Future<void> _change(String language) async {
     if (!supportedLanguages.contains(language) || language == _language) return;
     setState(() => _language = language);
-    await (await SharedPreferences.getInstance()).setString(preferenceKey, language);
+    await (await SharedPreferences.getInstance()).setString(
+      preferenceKey,
+      language,
+    );
   }
 
   @override
@@ -99,7 +115,10 @@ class _AmanResponderAppState extends State<AmanResponderApp> {
       onChangeLanguage: _change,
       child: child ?? const SizedBox.shrink(),
     ),
-    home: ServerGate(gateway: widget.gateway),
+    home: ServerGate(
+      gateway: widget.gateway,
+      pushNotifications: widget.pushNotifications,
+    ),
   );
 }
 
@@ -111,8 +130,9 @@ String describeError(Strings strings, Object error) =>
     : error.toString();
 
 class ServerGate extends StatefulWidget {
-  const ServerGate({super.key, required this.gateway});
+  const ServerGate({super.key, required this.gateway, this.pushNotifications});
   final ResponderGateway gateway;
+  final PushNotifications? pushNotifications;
 
   @override
   State<ServerGate> createState() => _ServerGateState();
@@ -178,6 +198,7 @@ class _ServerGateState extends State<ServerGate> {
     }
     return ResponderEntry(
       gateway: widget.gateway,
+      pushNotifications: widget.pushNotifications,
       onChangeServer: widget.gateway.supportsServerConfiguration
           ? () => setState(() => _editing = true)
           : null,
@@ -326,9 +347,11 @@ class ResponderEntry extends StatefulWidget {
   const ResponderEntry({
     super.key,
     required this.gateway,
+    this.pushNotifications,
     this.onChangeServer,
   });
   final ResponderGateway gateway;
+  final PushNotifications? pushNotifications;
   final VoidCallback? onChangeServer;
   @override
   State<ResponderEntry> createState() => _ResponderEntryState();
@@ -419,7 +442,11 @@ class _ResponderEntryState extends State<ResponderEntry> {
       return MissionHome(
         gateway: widget.gateway,
         responder: selected,
-        onSwitch: () => setState(() => _selectedId = null),
+        pushNotifications: widget.pushNotifications,
+        onSwitch: () async {
+          await widget.pushNotifications?.deactivate();
+          if (mounted) setState(() => _selectedId = null);
+        },
         onChangeServer: widget.onChangeServer,
       );
     }
@@ -506,11 +533,13 @@ class MissionHome extends StatefulWidget {
     required this.gateway,
     required this.responder,
     required this.onSwitch,
+    this.pushNotifications,
     this.onChangeServer,
   });
   final ResponderGateway gateway;
   final Responder responder;
   final VoidCallback onSwitch;
+  final PushNotifications? pushNotifications;
   final VoidCallback? onChangeServer;
   @override
   State<MissionHome> createState() => _MissionHomeState();
@@ -518,6 +547,7 @@ class MissionHome extends StatefulWidget {
 
 class _MissionHomeState extends State<MissionHome> {
   Timer? _timer;
+  StreamSubscription<void>? _pushSubscription;
   List<Mission> _missions = const [];
   List<MissionMessage> _messages = const [];
   Object? _error;
@@ -530,6 +560,10 @@ class _MissionHomeState extends State<MissionHome> {
   @override
   void initState() {
     super.initState();
+    widget.pushNotifications?.activate(widget.gateway, widget.responder.id);
+    _pushSubscription = widget.pushNotifications?.events.listen(
+      (_) => _refresh(),
+    );
     _refresh();
     _timer = Timer.periodic(const Duration(seconds: 5), (_) => _refresh());
   }
@@ -537,13 +571,13 @@ class _MissionHomeState extends State<MissionHome> {
   @override
   void dispose() {
     _timer?.cancel();
+    _pushSubscription?.cancel();
     super.dispose();
   }
 
   int get _unread => _messages
       .where(
-        (message) =>
-            message.isInstruction && message.id > _lastSeenMessageId,
+        (message) => message.isInstruction && message.id > _lastSeenMessageId,
       )
       .length;
 
@@ -636,12 +670,12 @@ class _MissionHomeState extends State<MissionHome> {
     }
   }
 
-  Future<void> _acknowledge(Mission mission) => _act(
-    () => widget.gateway.acknowledge(mission.id, widget.responder.id),
-  );
+  Future<void> _acknowledge(Mission mission) =>
+      _act(() => widget.gateway.acknowledge(mission.id, widget.responder.id));
 
-  Future<void> _report(Mission mission, String kind, String body) =>
-      _act(() => widget.gateway.send(mission.id, widget.responder.id, kind, body));
+  Future<void> _report(Mission mission, String kind, String body) => _act(
+    () => widget.gateway.send(mission.id, widget.responder.id, kind, body),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -749,6 +783,7 @@ class _MissionHomeState extends State<MissionHome> {
     );
   }
 }
+
 class BrandHeader extends StatelessWidget {
   const BrandHeader({
     super.key,
@@ -940,13 +975,16 @@ class MissionCard extends StatelessWidget {
         color: surface,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: mission.acknowledged ? line : const Color(0xFF9C7732),
+          color: mission.acknowledged ? line : alarmEdge,
+          width: mission.acknowledged ? 1 : 2,
         ),
-        boxShadow: const [
+        boxShadow: [
           BoxShadow(
-            color: Color(0x33000000),
+            color: mission.acknowledged
+                ? const Color(0x33000000)
+                : const Color(0x66C41E12),
             blurRadius: 24,
-            offset: Offset(0, 12),
+            offset: const Offset(0, 12),
           ),
         ],
       ),
@@ -959,6 +997,7 @@ class MissionCard extends StatelessWidget {
                 value: mission.acknowledged
                     ? s.t('mission.acknowledged')
                     : s.t('mission.actionRequired'),
+                alarm: !mission.acknowledged,
               ),
               const Spacer(),
               if (mission.simulated)
@@ -1104,28 +1143,44 @@ class NewAssignmentScreen extends StatefulWidget {
   State<NewAssignmentScreen> createState() => _NewAssignmentScreenState();
 }
 
-class _NewAssignmentScreenState extends State<NewAssignmentScreen> {
-  static const _maxPulses = 6;
+class _NewAssignmentScreenState extends State<NewAssignmentScreen>
+    with SingleTickerProviderStateMixin {
+  static const _buzzEvery = Duration(milliseconds: 1200);
+  final AudioPlayer _siren = AudioPlayer();
+  late final AnimationController _flash;
   Timer? _pulse;
-  int _pulses = 0;
   bool _busy = false;
 
   @override
   void initState() {
     super.initState();
-    _pulse = Timer.periodic(const Duration(seconds: 3), (timer) {
-      if (!mounted || _pulses >= _maxPulses) {
-        timer.cancel();
-        return;
-      }
-      _pulses += 1;
-      HapticFeedback.heavyImpact();
-    });
+    _flash = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
+    // The siren and the buzz run until the responder acts. A missed assignment
+    // costs more than an annoying phone, and acknowledging stops both at once.
+    _pulse = Timer.periodic(_buzzEvery, (_) => HapticFeedback.heavyImpact());
+    HapticFeedback.heavyImpact();
+    _startSiren();
+  }
+
+  Future<void> _startSiren() async {
+    try {
+      await _siren.setReleaseMode(ReleaseMode.loop);
+      await _siren.setVolume(1);
+      await _siren.play(AssetSource('alarm.wav'));
+    } catch (_) {
+      // Silenced phone, no audio route, or a test harness: the screen still shouts.
+    }
   }
 
   @override
   void dispose() {
     _pulse?.cancel();
+    _flash.dispose();
+    _siren.stop().catchError((_) {});
+    _siren.dispose();
     super.dispose();
   }
 
@@ -1138,23 +1193,51 @@ class _NewAssignmentScreenState extends State<NewAssignmentScreen> {
   @override
   Widget build(BuildContext context) {
     final s = L10n.of(context);
-    return Scaffold(
-      backgroundColor: ink,
-      body: SafeArea(
+    return AnimatedBuilder(
+      animation: _flash,
+      builder: (context, child) {
+        // A hard alternation rather than a fade: a switch catches the eye, a ramp does not.
+        final bright = _flash.value > 0.5;
+        return Scaffold(
+          backgroundColor: bright ? alarmBright : alarmDeep,
+          body: Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: bright ? Colors.white : alarmEdge, width: 6),
+            ),
+            child: child,
+          ),
+        );
+      },
+      child: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+          padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  StatusPill(value: s.t('mission.new')),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      s.t('mission.new').toUpperCase(),
+                      style: TextStyle(
+                        color: alarmBright,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: s.isRtl ? 0 : 1.4,
+                      ),
+                    ),
+                  ),
                   const Spacer(),
                   if (widget.mission.simulated)
                     Text(
                       s.t('mission.rehearsal'),
                       style: TextStyle(
-                        color: muted,
+                        color: const Color(0xFFFFC9C2),
                         fontSize: 10,
                         letterSpacing: s.isRtl ? 0 : 1.2,
                         fontWeight: FontWeight.w700,
@@ -1164,27 +1247,28 @@ class _NewAssignmentScreenState extends State<NewAssignmentScreen> {
               ),
               const Spacer(flex: 2),
               const Icon(
-                Icons.notifications_active_rounded,
-                color: Color(0xFFEBC56E),
-                size: 34,
+                Icons.warning_amber_rounded,
+                color: Colors.white,
+                size: 64,
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 18),
               Text(
-                s.t('mission.reportTo'),
+                s.t('mission.reportTo').toUpperCase(),
                 style: TextStyle(
-                  color: muted,
-                  fontSize: 11,
-                  letterSpacing: s.isRtl ? 0 : 1.8,
-                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFFFFD3CD),
+                  fontSize: 12,
+                  letterSpacing: s.isRtl ? 0 : 2,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
               const SizedBox(height: 10),
               Text(
                 s.zoneLabel(widget.mission.zoneName),
                 style: TextStyle(
-                  fontSize: 40,
-                  height: 1.1,
-                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                  fontSize: 44,
+                  height: 1.05,
+                  fontWeight: FontWeight.w900,
                   letterSpacing: s.isRtl ? 0 : -1.2,
                 ),
               ),
@@ -1193,20 +1277,24 @@ class _NewAssignmentScreenState extends State<NewAssignmentScreen> {
                 children: [
                   const Icon(
                     Icons.location_searching_rounded,
-                    color: mint,
+                    color: Colors.white,
                     size: 20,
                   ),
                   const SizedBox(width: 9),
                   Expanded(
                     child: Text(
                       locationCopy(s, widget.mission),
-                      style: const TextStyle(color: muted),
+                      style: const TextStyle(color: Color(0xFFFFD3CD)),
                     ),
                   ),
                 ],
               ),
               const Spacer(flex: 3),
               ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: alarmBright,
+                ),
                 onPressed: _busy ? null : _acknowledge,
                 child: Text(
                   _busy ? s.t('action.updating') : s.t('action.acknowledge'),
@@ -1214,6 +1302,7 @@ class _NewAssignmentScreenState extends State<NewAssignmentScreen> {
               ),
               const SizedBox(height: 8),
               TextButton(
+                style: TextButton.styleFrom(foregroundColor: const Color(0xFFFFD3CD)),
                 onPressed: _busy ? null : () => Navigator.of(context).pop(),
                 child: Text(s.t('action.viewDetails')),
               ),
@@ -1224,6 +1313,7 @@ class _NewAssignmentScreenState extends State<NewAssignmentScreen> {
     );
   }
 }
+
 class MissionThread extends StatefulWidget {
   const MissionThread({
     super.key,
@@ -1313,7 +1403,9 @@ class _MissionThreadState extends State<MissionThread> {
         children: [
           Text(
             s.t('thread.entry', {
-              'sender': fromControl ? s.t('thread.controlRoom') : s.t('thread.you'),
+              'sender': fromControl
+                  ? s.t('thread.controlRoom')
+                  : s.t('thread.you'),
               'time': _clock(message.createdAt),
             }),
             style: const TextStyle(color: muted, fontSize: 11),
@@ -1324,10 +1416,7 @@ class _MissionThreadState extends State<MissionThread> {
               maxWidth: MediaQuery.of(context).size.width * 0.7,
             ),
             child: Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 13,
-                vertical: 10,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
               decoration: BoxDecoration(
                 color: fromControl
                     ? const Color(0xFF17213A)
@@ -1415,6 +1504,7 @@ class _MissionThreadState extends State<MissionThread> {
     );
   }
 }
+
 class DemoNotice extends StatelessWidget {
   const DemoNotice({super.key});
   @override
@@ -1563,8 +1653,12 @@ class _ConnectionPillState extends State<ConnectionPill> {
 
   static String _ago(Strings s, Duration age) {
     if (age.inSeconds < 5) return s.t('link.justNow');
-    if (age.inSeconds < 60) return s.t('link.secondsAgo', {'count': age.inSeconds});
-    if (age.inMinutes < 60) return s.t('link.minutesAgo', {'count': age.inMinutes});
+    if (age.inSeconds < 60) {
+      return s.t('link.secondsAgo', {'count': age.inSeconds});
+    }
+    if (age.inMinutes < 60) {
+      return s.t('link.minutesAgo', {'count': age.inMinutes});
+    }
     return s.t('link.hoursAgo', {'count': age.inHours});
   }
 
@@ -1581,7 +1675,9 @@ class _ConnectionPillState extends State<ConnectionPill> {
       label = s.t('link.connecting');
     } else if (widget.offline) {
       colour = amber;
-      label = age.inSeconds > 60 ? s.t('link.offline') : s.t('link.reconnecting');
+      label = age.inSeconds > 60
+          ? s.t('link.offline')
+          : s.t('link.reconnecting');
     } else if (age.inSeconds > 20) {
       colour = amber;
       label = s.t('link.delayed');
@@ -1631,20 +1727,24 @@ class UnreadBadge extends StatelessWidget {
     ),
   );
 }
+
 class StatusPill extends StatelessWidget {
-  const StatusPill({super.key, required this.value});
+  const StatusPill({super.key, required this.value, this.alarm = false});
   final String value;
+
+  /// Red instead of amber while a mission still needs the responder to act.
+  final bool alarm;
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
     decoration: BoxDecoration(
-      color: const Color(0xFF2E291B),
+      color: alarm ? alarmBright : const Color(0xFF2E291B),
       borderRadius: BorderRadius.circular(6),
     ),
     child: Text(
       value,
       style: TextStyle(
-        color: const Color(0xFFEBC56E),
+        color: alarm ? Colors.white : const Color(0xFFEBC56E),
         fontSize: 10,
         letterSpacing: L10n.of(context).isRtl ? 0 : 1,
         fontWeight: FontWeight.w800,

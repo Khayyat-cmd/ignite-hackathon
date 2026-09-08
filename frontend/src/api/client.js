@@ -1,5 +1,9 @@
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1/demo').replace(/\/$/, '');
 
+// The responder APK is published next to the API, so the desktop build links to
+// the same host the console talks to rather than to a path it cannot serve.
+export const APK_URL = new URL('/downloads/aman-responder.apk', API_URL).href;
+
 export class ApiError extends Error {
   constructor(message, status = 0, retryAfter = null) {
     super(message);

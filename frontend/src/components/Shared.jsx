@@ -61,28 +61,35 @@ export function TrendTag({ trend }) {
   return <span className={`trend trend-${trend.direction}`} dir="ltr">{arrow} {amount} · {t('trend.seconds', { count: trend.seconds })}</span>;
 }
 
-// A short two-tone alert. Created per call so a suspended context from an
-// unfocused window never leaves a dead reference behind.
+// A two-tone emergency siren. An incident is a life-safety event, so the cue is
+// loud and sweeps rather than chimes. Created per call so a suspended context
+// from an unfocused window never leaves a dead reference behind.
 export function playAlertTone() {
   const Context = window.AudioContext || window.webkitAudioContext;
   if (!Context) return;
   try {
     const context = new Context();
     const now = context.currentTime;
-    [880, 1320].forEach((frequency, index) => {
+    const master = context.createGain();
+    master.gain.setValueAtTime(0.32, now);
+    master.connect(context.destination);
+    // Three rising sweeps, 620 Hz to 1180 Hz, the way a two-tone siren wails.
+    for (let sweep = 0; sweep < 3; sweep += 1) {
+      const at = now + sweep * 0.42;
       const oscillator = context.createOscillator();
       const gain = context.createGain();
-      const at = now + index * 0.16;
-      oscillator.type = 'sine';
-      oscillator.frequency.setValueAtTime(frequency, at);
+      oscillator.type = 'sawtooth';
+      oscillator.frequency.setValueAtTime(620, at);
+      oscillator.frequency.linearRampToValueAtTime(1180, at + 0.22);
+      oscillator.frequency.linearRampToValueAtTime(680, at + 0.34);
       gain.gain.setValueAtTime(0.0001, at);
-      gain.gain.exponentialRampToValueAtTime(0.09, at + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.14);
-      oscillator.connect(gain).connect(context.destination);
+      gain.gain.exponentialRampToValueAtTime(1, at + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.36);
+      oscillator.connect(gain).connect(master);
       oscillator.start(at);
-      oscillator.stop(at + 0.16);
-    });
-    window.setTimeout(() => context.close().catch(() => {}), 800);
+      oscillator.stop(at + 0.4);
+    }
+    window.setTimeout(() => context.close().catch(() => {}), 2200);
   } catch {
     // Audio is a courtesy cue; the banner is the actual alert.
   }

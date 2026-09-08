@@ -9,6 +9,8 @@ import Messages from './Messages';
 import VenueMap from './VenueMap';
 
 const MUTE_KEY = 'aman.alertMuted';
+const ALARM_REPEAT_MS = 6000;
+const BASE_TITLE = 'AMAN Command Center';
 const FRESH_MS = 12000;
 const DEFAULT_STABLE_SECONDS = 15;
 
@@ -311,6 +313,33 @@ export default function OperatorPanel({ data, refresh }) {
   useEffect(() => {
     if (lastAwaiting.current !== null && awaiting > lastAwaiting.current && !mutedRef.current) playAlertTone();
     lastAwaiting.current = awaiting;
+  }, [awaiting]);
+
+  // An incident nobody has approved keeps sounding. One cue is easy to miss in a
+  // loud control room, so the siren repeats until the queue is cleared or muted.
+  useEffect(() => {
+    if (!awaiting || muted) return undefined;
+    const timer = setInterval(playAlertTone, ALARM_REPEAT_MS);
+    return () => clearInterval(timer);
+  }, [awaiting, muted]);
+
+  // The window is often behind the Unity screen, so the title carries the count too.
+  useEffect(() => {
+    if (!awaiting) {
+      document.title = BASE_TITLE;
+      return undefined;
+    }
+    let on = true;
+    const paint = () => {
+      document.title = on ? `\u26A0 ${awaiting} AWAITING DISPATCH` : BASE_TITLE;
+      on = !on;
+    };
+    paint();
+    const timer = setInterval(paint, 900);
+    return () => {
+      clearInterval(timer);
+      document.title = BASE_TITLE;
+    };
   }, [awaiting]);
 
   function toggleMute() {
