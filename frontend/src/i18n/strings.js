@@ -85,6 +85,9 @@ export const en = {
 
   'map.head': 'Venue',
   'map.meta': '{zones} monitored zones · {responders} responders located',
+  'map.secondScreenZone': 'Second screen · {zone}',
+  'map.secondScreenVenue': 'Second screen · whole venue',
+  'map.secondScreenOffline': 'Second screen · not following',
   'map.aria': 'Interactive zone boundary map',
   'map.zoneAria': '{name}: {state}',
   'map.outdated': 'outdated',
@@ -324,6 +327,9 @@ export const ar = {
 
   'map.head': 'الموقع',
   'map.meta': '{zones} منطقة مراقَبة · {responders} مستجيب محدَّد الموقع',
+  'map.secondScreenZone': 'الشاشة الثانية · {zone}',
+  'map.secondScreenVenue': 'الشاشة الثانية · الموقع بالكامل',
+  'map.secondScreenOffline': 'الشاشة الثانية · لا تتابع',
   'map.aria': 'خريطة تفاعلية لحدود المناطق',
   'map.zoneAria': '{name}: {state}',
   'map.outdated': 'قديمة',

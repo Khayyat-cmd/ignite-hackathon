@@ -10,6 +10,7 @@ import VenueMap from './VenueMap';
 
 const MUTE_KEY = 'aman.alertMuted';
 const ALARM_REPEAT_MS = 6000;
+const FOCUS_DEBOUNCE_MS = 250;
 const BASE_TITLE = 'AMAN Command Center';
 const FRESH_MS = 12000;
 const DEFAULT_STABLE_SECONDS = 15;
@@ -253,6 +254,7 @@ export default function OperatorPanel({ data, refresh }) {
   const [decisionView, setDecisionView] = useState('incidents');
   const [muted, setMuted] = useState(readMuted);
   const [freshIds, setFreshIds] = useState({});
+  const [secondScreenLive, setSecondScreenLive] = useState(true);
 
   const incidents = data.incidents || [];
   const zoneName = (id) => data.zones.find((z) => z.id === id)?.name || t('incident.unknownZone');
@@ -322,6 +324,29 @@ export default function OperatorPanel({ data, refresh }) {
     const timer = setInterval(playAlertTone, ALARM_REPEAT_MS);
     return () => clearInterval(timer);
   }, [awaiting, muted]);
+
+  // The Unity screen is a separate application that never talks to Electron; it
+  // follows the operator by polling the run, so the console publishes what it has
+  // focused and Unity moves its camera there.
+  const focusedIncidentId = focused?.id ?? null;
+  useEffect(() => {
+    if (!data.id) return undefined;
+    const controller = new AbortController();
+    // Debounced: clicking through the queue must not post once per row.
+    const timer = setTimeout(() => {
+      apiRequest(`/simulations/${data.id}/focus`, {
+        method: 'POST',
+        body: { zoneId: linkedZoneId, incidentId: focusedIncidentId },
+        signal: controller.signal,
+      })
+        .then(() => setSecondScreenLive(true))
+        .catch((error) => { if (error.name !== 'AbortError') setSecondScreenLive(false); });
+    }, FOCUS_DEBOUNCE_MS);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [data.id, linkedZoneId, focusedIncidentId]);
 
   // The window is often behind the Unity screen, so the title carries the count too.
   useEffect(() => {
@@ -418,6 +443,8 @@ export default function OperatorPanel({ data, refresh }) {
           incidents={incidents}
           focusedIncidentId={focused?.id}
           focusedResponderId={linkedResponderId}
+          secondScreenLive={secondScreenLive}
+          secondScreenZone={linkedZoneId ? zoneName(linkedZoneId) : null}
           linkedZoneId={filterZoneId === linkedZoneId ? null : linkedZoneId}
           onSelectResponder={(id) => selectResponder(id, assignments[id])}
         />

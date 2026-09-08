@@ -23,6 +23,15 @@ describe('Command center', () => {
     expect(html).toContain('East Entrance');
     expect(html).toContain('ZONE SCHEMATIC');
   });
+  it('tells the operator what the Unity second screen is framing', () => {
+    const venue = renderToStaticMarkup(<OperatorPanel data={base} />);
+    expect(venue).toContain('Second screen · whole venue');
+
+    // Selecting an incident links its zone, and that is what Unity follows.
+    const incident = { id: 'i1', zone_id: 'east', active_zone_id: 'east', status: 'awaiting_approval', decision: {} };
+    const focused = renderToStaticMarkup(<OperatorPanel data={{ ...base, incidents: [incident] }} />);
+    expect(focused).toContain('Second screen · East Entrance');
+  });
   it('marks map conditions outdated when the snapshot is stale', () => {
     const html = renderToStaticMarkup(<OperatorPanel data={{ ...base, stale: true }} />);
     expect(html).toContain('East Entrance: outdated');

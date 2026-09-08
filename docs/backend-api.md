@@ -14,6 +14,7 @@ The current demo creates its local operator and responder identities automatical
 | `POST /simulations` | Create a simulation run. |
 | `GET /simulations/{run}` | Get the current operator or Unity snapshot. |
 | `POST /simulations/{run}/control` | Start, pause, stop, or reset a run. |
+| `POST /simulations/{run}/focus` | Publish the operator's zone focus for the Unity second screen. |
 | `POST /simulations/{run}/location-retrieval/v0/retrieve` | Exercise the simulated location provider. |
 | `POST /incidents/{incident}/recommend` | Calculate the deterministic responder recommendation. |
 | `POST /incidents/{incident}/advice` | Retry asynchronous AI advice for an incident with eligible candidates. |

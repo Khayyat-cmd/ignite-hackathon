@@ -61,6 +61,8 @@ export default function VenueMap({
   focusedResponderId,
   linkedZoneId,
   onSelectResponder,
+  secondScreenLive = true,
+  secondScreenZone = null,
 }) {
   const { t, n, term } = useI18n();
   const projection = useMemo(() => buildProjection(zones), [zones]);
@@ -126,7 +128,13 @@ export default function VenueMap({
   }, [incidents]);
 
   return <section className="map-section">
-    <div className="pane-head">{t('map.head')}<span className="meta">{t('map.meta', { zones: n(zones.length), responders: n(pins.length) })}</span></div>
+    <div className="pane-head">{t('map.head')}
+      {secondScreenLive
+        ? <span className="second-screen">{secondScreenZone
+          ? t('map.secondScreenZone', { zone: secondScreenZone })
+          : t('map.secondScreenVenue')}</span>
+        : <span className="second-screen offline">{t('map.secondScreenOffline')}</span>}
+      <span className="meta">{t('map.meta', { zones: n(zones.length), responders: n(pins.length) })}</span></div>
     <div className="map-canvas">
       {shapes.length ? <svg viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} role="group" aria-label={t('map.aria')}>
         {shapes.map(({ zone, points, bounds }) => <g
