@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "951272866640",
+    "project_id": "aman-df1f1",
+    "storage_bucket": "aman-df1f1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:951272866640:android:00d7cfa61da7508824e255",
+        "android_client_info": {
+          "package_name": "com.example.aman_responder"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDoZXHnJ40B6waV-EFc6mT4MccU9nlsRYg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

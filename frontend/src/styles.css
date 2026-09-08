@@ -94,6 +94,7 @@ button, input, select, textarea { font: inherit; color: var(--text); }
 .btn-quiet:hover:not(:disabled) { background: var(--raised); border-color: var(--line-2); color: var(--text); }
 .btn-block { width: 100%; justify-content: center; }
 .btn-lg { height: 32px; }
+.apk-download { text-decoration: none; }
 
 input, select, textarea {
   width: 100%;
@@ -580,21 +581,28 @@ body { user-select: none; }
   display: flex;
   align-items: center;
   gap: var(--sp-3);
-  padding: 8px var(--sp-4);
-  border-bottom: 1px solid #5a2a26;
-  background: linear-gradient(90deg, #33191660 0%, #2a1614 100%);
-  color: #f4b5ae;
-  font-size: var(--fs-sm);
-  animation: attention 2s ease-in-out infinite;
+  padding: 11px var(--sp-4);
+  border-bottom: 2px solid #ff5247;
+  background: linear-gradient(90deg, #6d1610 0%, #a81d13 100%);
+  color: #ffe4e0;
+  font-size: var(--fs-base);
+  animation: attention 1.1s steps(1, end) infinite;
 }
-.attentionbar strong { color: #ffd7d2; font-weight: 700; }
-.attentionbar .dot.critical { box-shadow: 0 0 0 3px #dd5b5226; }
-.attention-zones { flex: 1; min-width: 0; color: var(--text-2); font-size: var(--fs-micro); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.attentionbar .btn-quiet { color: var(--text-2); }
-@keyframes attention { 50% { border-bottom-color: #8a3a33; } }
+.attentionbar strong { color: #fff; font-weight: 800; letter-spacing: .2px; }
+.attentionbar .dot.critical { background: #fff; box-shadow: 0 0 0 4px #ffffff40; }
+.attention-zones { flex: 1; min-width: 0; color: #ffd0ca; font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attentionbar .btn-primary { background: #fff; border-color: #fff; color: #7a1a12; font-weight: 700; }
+.attentionbar .btn-primary:hover:not(:disabled) { background: #ffe4e0; border-color: #ffe4e0; }
+.attentionbar .btn-quiet { color: #ffd0ca; border-color: #ffffff4d; }
+.attentionbar .btn-quiet:hover:not(:disabled) { background: #ffffff1f; border-color: #fff; color: #fff; }
+/* A hard alternation, not a fade: peripheral vision catches a switch, not a ramp. */
+@keyframes attention {
+  0% { background: linear-gradient(90deg, #6d1610 0%, #a81d13 100%); border-bottom-color: #ff5247; }
+  50% { background: linear-gradient(90deg, #a81d13 0%, #d4271a 100%); border-bottom-color: #ff9a91; }
+}
 
-.queue-row.fresh { animation: arrive 1.6s ease-out 5; }
-@keyframes arrive { 0%, 100% { background: transparent; } 30% { background: #2a1614; } }
+.queue-row.fresh { animation: arrive 1s ease-out 8; }
+@keyframes arrive { 0%, 100% { background: transparent; } 40% { background: #7a1a12; } }
 
 /* ---------- zone trend ---------- */
 

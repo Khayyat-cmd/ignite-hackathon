@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { apiRequest } from './api/client';
+import { apiRequest, APK_URL } from './api/client';
 import { usePolling } from './hooks/usePolling';
 import { useAction } from './hooks/useAction';
 import { useI18n, LanguageToggle } from './i18n';
@@ -53,6 +53,7 @@ function TopBar({ session, run }) {
       </div>
     </>}
     <span className="topbar-rule" />
+    <a className="btn btn-quiet apk-download" href={APK_URL} download>{t('topbar.getResponderApp')}</a>
     <LanguageToggle />
   </header>;
 }

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\EventType;
 use App\Enums\IncidentStatus;
 use App\Jobs\GenerateIncidentAdvice;
+use App\Jobs\SendResponderPushNotification;
 use App\Models\Incident;
 use App\Models\Responder;
 use App\Models\SimulationRun;
@@ -77,7 +78,7 @@ final class IncidentWorkflow
 
     public function approve(Incident $incident, int $actorId, ?string $selectedResponderId = null): Incident
     {
-        return DB::transaction(function () use ($incident, $actorId, $selectedResponderId) {
+        $incident = DB::transaction(function () use ($incident, $actorId, $selectedResponderId) {
             $incident = Incident::where('organization_id', $incident->organization_id)->whereKey($incident->id)->lockForUpdate()->firstOrFail();
             $this->requireActiveSimulation($incident);
             if (in_array($incident->status, [IncidentStatus::Dispatched, IncidentStatus::Acknowledged], true)) {
@@ -106,6 +107,18 @@ final class IncidentWorkflow
 
             return $incident;
         }, attempts: 3);
+
+        if ($incident->wasChanged('status') && $incident->status === IncidentStatus::Dispatched) {
+            $zoneName = Zone::whereKey($incident->zone_id)->value('name') ?? 'assigned zone';
+            SendResponderPushNotification::dispatch(
+                $incident->assigned_responder_id,
+                '🚨 DISPATCH — '.$zoneName,
+                'Respond to '.$zoneName.' now. Open AMAN to acknowledge.',
+                ['type' => 'mission_assigned', 'incidentId' => $incident->id],
+            )->afterCommit();
+        }
+
+        return $incident;
     }
 
     public function acknowledge(Incident $incident, int $actorId): Incident

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\EventType;
 use App\Enums\IncidentStatus;
+use App\Jobs\SendResponderPushNotification;
 use App\Models\Incident;
 use App\Models\Responder;
 use App\Models\SimulationRun;
@@ -37,7 +38,7 @@ class MissionCommunicationController extends Controller
         $isOperator = $responderId === null;
         abort_unless($isOperator ? in_array($data['kind'], ['instruction', 'message'], true) : $data['kind'] !== 'instruction', 403);
 
-        return DB::transaction(function () use ($incident, $data, $journal, $workspace, $responderId, $actor) {
+        $result = DB::transaction(function () use ($incident, $data, $journal, $workspace, $responderId, $actor) {
             // Match the simulation tick lock order: run, then incident.
             $run = SimulationRun::where('venue_event_id', $incident->venue_event_id)->lockForUpdate()->first();
             $locked = Incident::whereKey($incident->id)->lockForUpdate()->firstOrFail();
@@ -77,6 +78,17 @@ class MissionCommunicationController extends Controller
 
             return ['id' => $id, 'duplicate' => false];
         }, attempts: 3);
+
+        if ($isOperator && ! $result['duplicate'] && $incident->assigned_responder_id) {
+            SendResponderPushNotification::dispatch(
+                $incident->assigned_responder_id,
+                'Control room update',
+                $data['body'],
+                ['type' => 'mission_message', 'incidentId' => $incident->id, 'messageId' => (string) $result['id']],
+            )->afterCommit();
+        }
+
+        return $result;
     }
 
     private function authorizeMission(Incident $incident, DemoWorkspace $workspace, ?string $responderId): void

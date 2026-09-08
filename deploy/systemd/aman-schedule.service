@@ -1,0 +1,15 @@
+[Unit]
+Description=AMAN scheduler (five-second simulation tick)
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/aman/backend
+ExecStart=/usr/bin/php artisan schedule:work
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

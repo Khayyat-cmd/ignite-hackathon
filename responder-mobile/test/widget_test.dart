@@ -49,8 +49,16 @@ class FakeGateway implements ResponderGateway {
     String kind,
     String body,
   ) async {}
+  @override
+  Future<void> registerPushToken(
+    String deviceId,
+    String responderId,
+    String platform,
+    String token,
+  ) async {}
+  @override
+  Future<void> unregisterPushToken(String deviceId, String responderId) async {}
 }
-
 
 class MissionGateway extends FakeGateway {
   MissionGateway({required this.mission, this.thread = const []});
@@ -93,6 +101,13 @@ Future<void> pumpMission(WidgetTester tester, MissionGateway gateway) async {
 }
 
 void main() {
+  test('a build with a baked API URL never asks for a server address', () {
+    // The APK handed to responders is built with --dart-define=API_URL, and that
+    // alone must retire the setup screen; no second flag has to be remembered.
+    const baked = String.fromEnvironment('API_URL');
+    expect(AmanApi().supportsServerConfiguration, baked.isEmpty);
+  });
+
   testWidgets('shows the demo responder directory', (tester) async {
     SharedPreferences.setMockInitialValues({});
     await tester.pumpWidget(AmanResponderApp(gateway: FakeGateway()));

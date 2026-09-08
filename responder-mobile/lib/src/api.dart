@@ -19,6 +19,13 @@ abstract class ResponderGateway {
     String kind,
     String body,
   );
+  Future<void> registerPushToken(
+    String deviceId,
+    String responderId,
+    String platform,
+    String token,
+  ) async {}
+  Future<void> unregisterPushToken(String deviceId, String responderId) async {}
 }
 
 class AmanApi implements ResponderGateway {
@@ -26,16 +33,23 @@ class AmanApi implements ResponderGateway {
     : _client = client ?? http.Client(),
       _baseUrl = _configuredUrl.replaceFirst(RegExp(r'/$'), '');
 
+  static const _emulatorUrl = 'http://10.0.2.2:8000/api/v1/demo';
   static const _configuredUrl = String.fromEnvironment(
     'API_URL',
-    defaultValue: 'http://10.0.2.2:8000/api/v1/demo',
+    defaultValue: _emulatorUrl,
+  );
+  // A build that carries a real API_URL is a build handed to someone else, so it
+  // never asks for a server address. Development builds keep the setup screen.
+  static const _allowServerConfiguration = bool.fromEnvironment(
+    'ALLOW_SERVER_CONFIGURATION',
+    defaultValue: _configuredUrl == _emulatorUrl,
   );
   final http.Client _client;
   final Uuid _uuid = const Uuid();
   String _baseUrl;
 
   @override
-  bool get supportsServerConfiguration => true;
+  bool get supportsServerConfiguration => _allowServerConfiguration;
 
   @override
   void configureServer(String baseUrl) {
@@ -102,6 +116,26 @@ class AmanApi implements ResponderGateway {
     },
   );
 
+  @override
+  Future<void> registerPushToken(
+    String deviceId,
+    String responderId,
+    String platform,
+    String token,
+  ) => _request(
+    'PUT',
+    '/devices/${Uri.encodeComponent(deviceId)}/push-token',
+    body: {'responderId': responderId, 'platform': platform, 'token': token},
+  );
+
+  @override
+  Future<void> unregisterPushToken(String deviceId, String responderId) =>
+      _request(
+        'DELETE',
+        '/devices/${Uri.encodeComponent(deviceId)}/push-token',
+        body: {'responderId': responderId},
+      );
+
   Future<Map<String, dynamic>> _request(
     String method,
     String path, {
@@ -113,31 +147,48 @@ class AmanApi implements ResponderGateway {
       if (body != null) 'Content-Type': 'application/json',
     };
     try {
-      final response = method == 'GET'
-          ? await _client
-                .get(uri, headers: headers)
-                .timeout(const Duration(seconds: 15))
-          : await _client
-                .post(uri, headers: headers, body: jsonEncode(body))
-                .timeout(const Duration(seconds: 15));
-      final payload = jsonDecode(response.body) as Map<String, dynamic>;
+      final response = await (switch (method) {
+        'GET' => _client.get(uri, headers: headers),
+        'PUT' => _client.put(uri, headers: headers, body: jsonEncode(body)),
+        'DELETE' => _client.delete(
+          uri,
+          headers: headers,
+          body: jsonEncode(body),
+        ),
+        _ => _client.post(uri, headers: headers, body: jsonEncode(body)),
+      }).timeout(const Duration(seconds: 15));
+      final payload = response.body.isEmpty
+          ? <String, dynamic>{}
+          : jsonDecode(response.body) as Map<String, dynamic>;
       if (response.statusCode < 200 || response.statusCode >= 300) {
         // A backend message is already specific; only the transport failures
         // below carry a code the app can say in the responder's language.
         final message = payload['message'] as String?;
         throw message == null
-            ? const ApiException('The request could not be completed.', code: 'incomplete')
+            ? const ApiException(
+                'The request could not be completed.',
+                code: 'incomplete',
+              )
             : ApiException(message);
       }
       return payload;
     } on ApiException {
       rethrow;
     } on TimeoutException {
-      throw const ApiException('The connection timed out. Try again.', code: 'timeout');
+      throw const ApiException(
+        'The connection timed out. Try again.',
+        code: 'timeout',
+      );
     } on http.ClientException {
-      throw const ApiException('AMAN could not reach the server.', code: 'unreachable');
+      throw const ApiException(
+        'AMAN could not reach the server.',
+        code: 'unreachable',
+      );
     } on FormatException {
-      throw const ApiException('The server returned an unexpected response.', code: 'malformed');
+      throw const ApiException(
+        'The server returned an unexpected response.',
+        code: 'malformed',
+      );
     }
   }
 }

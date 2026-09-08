@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\DevicePushTokenController;
 use App\Http\Controllers\IncidentController;
 use App\Http\Controllers\MissionCommunicationController;
 use App\Http\Controllers\MissionController;
@@ -19,6 +20,8 @@ Route::prefix('v1/demo')->middleware('throttle:api')->group(function () {
     Route::post('incidents/{incident}/approve', [IncidentController::class, 'approve']);
     Route::post('incidents/{incident}/resolve', [IncidentController::class, 'resolve']);
     Route::get('responders', [MissionController::class, 'responders']);
+    Route::put('devices/{deviceId}/push-token', [DevicePushTokenController::class, 'update']);
+    Route::delete('devices/{deviceId}/push-token', [DevicePushTokenController::class, 'destroy']);
     Route::get('missions', [MissionController::class, 'index']);
     Route::post('missions/{incident}/acknowledge', [MissionController::class, 'acknowledge']);
     Route::get('missions/{incident}/messages', [MissionCommunicationController::class, 'index']);

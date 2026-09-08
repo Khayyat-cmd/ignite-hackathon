@@ -29,7 +29,8 @@ const _en = <String, String>{
   'server.invalid': 'Enter a valid IP address or server URL.',
   'server.connecting': 'CONNECTING…',
   'server.connect': 'CONNECT',
-  'server.sameNetwork': 'The phone and computer must be on the same Wi-Fi network.',
+  'server.sameNetwork':
+      'The phone and computer must be on the same Wi-Fi network.',
 
   'entry.title': 'Choose your profile',
   'entry.blurb': 'Select the current event, then choose your name.',
@@ -40,15 +41,18 @@ const _en = <String, String>{
   'entry.eventFallback': 'Rehearsal event',
 
   'directory.emptyTitle': 'No event available',
-  'directory.emptyBody': 'Start a rehearsal from the operations console, then refresh.',
+  'directory.emptyBody':
+      'Start a rehearsal from the operations console, then refresh.',
 
   'mission.assignedArea': 'Assigned area',
   'mission.current': 'Current assignment',
   'mission.channel': 'Mission channel',
   'mission.refreshNote': 'Refreshes every 5 seconds · Pull down to refresh',
-  'mission.newSnack': 'New assignment received. Review the destination and acknowledge.',
+  'mission.newSnack':
+      'New assignment received. Review the destination and acknowledge.',
   'mission.emptyTitle': 'No active assignment',
-  'mission.emptyBody': 'Remain available. New assignments appear here automatically.',
+  'mission.emptyBody':
+      'Remain available. New assignments appear here automatically.',
   'mission.acknowledged': 'ACKNOWLEDGED',
   'mission.actionRequired': 'ACTION REQUIRED',
   'mission.new': 'NEW ASSIGNMENT',
@@ -56,8 +60,10 @@ const _en = <String, String>{
   'mission.reportTo': 'REPORT TO',
   'mission.onSceneStrip': 'On scene · Crowd response in progress',
   'mission.locationVerifiedArrival': 'Arrival verified for the assigned area.',
-  'mission.locationVerified': 'Location verified. Confirm when you are ready to begin.',
-  'mission.locationProceed': 'Proceed to the assigned area. Arrival will be verified automatically.',
+  'mission.locationVerified':
+      'Location verified. Confirm when you are ready to begin.',
+  'mission.locationProceed':
+      'Proceed to the assigned area. Arrival will be verified automatically.',
 
   'action.headingThere': 'HEADING THERE',
   'action.onScene': 'ON SCENE',
@@ -68,7 +74,8 @@ const _en = <String, String>{
   'report.enRoute': 'Heading to {zone}.',
   'report.onScene': 'On scene at {zone}. Beginning crowd response.',
 
-  'thread.empty': 'No messages yet. Instructions from the control room will appear here.',
+  'thread.empty':
+      'No messages yet. Instructions from the control room will appear here.',
   'thread.controlRoom': 'Control room',
   'thread.you': 'You',
   'thread.hint': 'Update control room',
@@ -114,7 +121,8 @@ const _ar = <String, String>{
   'common.cancel': 'إلغاء',
 
   'server.title': 'الاتصال بـ AMAN',
-  'server.blurb': 'أدخل عنوان الـ IP الظاهر باسم «Phone API» عند تشغيل منصة العمليات.',
+  'server.blurb':
+      'أدخل عنوان الـ IP الظاهر باسم «Phone API» عند تشغيل منصة العمليات.',
   'server.field': 'عنوان IP للحاسوب',
   'server.invalid': 'أدخل عنوان IP أو رابط خادم صحيحًا.',
   'server.connecting': 'جارٍ الاتصال…',
@@ -145,9 +153,12 @@ const _ar = <String, String>{
   'mission.rehearsal': 'تدريب',
   'mission.reportTo': 'التوجّه إلى',
   'mission.onSceneStrip': 'في الموقع · الاستجابة للحشد جارية',
-  'mission.locationVerifiedArrival': 'تم التحقق من الوصول إلى المنطقة المكلَّف بها.',
-  'mission.locationVerified': 'تم التحقق من الموقع. أكّد عندما تكون جاهزًا للبدء.',
-  'mission.locationProceed': 'توجّه إلى المنطقة المكلَّف بها. سيتم التحقق من الوصول تلقائيًا.',
+  'mission.locationVerifiedArrival':
+      'تم التحقق من الوصول إلى المنطقة المكلَّف بها.',
+  'mission.locationVerified':
+      'تم التحقق من الموقع. أكّد عندما تكون جاهزًا للبدء.',
+  'mission.locationProceed':
+      'توجّه إلى المنطقة المكلَّف بها. سيتم التحقق من الوصول تلقائيًا.',
 
   'action.headingThere': 'في الطريق',
   'action.onScene': 'في الموقع',
@@ -218,7 +229,9 @@ class Strings {
   /// Backend vocabulary translated by value, humanised when this catalogue has
   /// never seen it, so a new status still reads as words in the field.
   String _vocab(String prefix, String value) =>
-      _table['$prefix.$value'] ?? _en['$prefix.$value'] ?? value.replaceAll('_', ' ');
+      _table['$prefix.$value'] ??
+      _en['$prefix.$value'] ??
+      value.replaceAll('_', ' ');
 
   String kind(String value) => _vocab('kind', value);
 
@@ -260,5 +273,6 @@ class L10n extends InheritedWidget {
       maybeOf(context)?.strings ?? Strings.english;
 
   @override
-  bool updateShouldNotify(L10n oldWidget) => oldWidget.strings.language != strings.language;
+  bool updateShouldNotify(L10n oldWidget) =>
+      oldWidget.strings.language != strings.language;
 }

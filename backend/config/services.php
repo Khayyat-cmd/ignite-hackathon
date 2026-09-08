@@ -44,4 +44,12 @@ return [
         'timeout_seconds' => env('OPENAI_TIMEOUT_SECONDS', 20),
     ],
 
+    'firebase' => [
+        'project_id' => env('FIREBASE_PROJECT_ID', 'aman-df1f1'),
+        // A blank GOOGLE_APPLICATION_CREDENTIALS must fall back to the bundled path,
+        // not to an empty string that silently disables push.
+        'credentials' => env('GOOGLE_APPLICATION_CREDENTIALS') ?: storage_path('app/private/firebase-service-account.json'),
+        'timeout_seconds' => env('FIREBASE_TIMEOUT_SECONDS', 10),
+    ],
+
 ];
