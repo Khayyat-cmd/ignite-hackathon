@@ -16,4 +16,5 @@ enum EventType: string
     case SimulationStopped = 'simulation_stopped';
     case MissionMessage = 'mission_message';
     case IncidentAdviceReady = 'incident_advice_ready';
+    case ZoneFocused = 'zone_focused';
 }

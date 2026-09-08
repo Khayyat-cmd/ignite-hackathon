@@ -25,8 +25,38 @@ Unity must not receive provider credentials, LLM credentials, responder phone nu
 | `response_acknowledged` | Show responder acknowledgement. |
 | `incident_resolved` | Close the incident and restore the current zone state. |
 | `responder_updated` | Update the responder's render-safe position and availability. |
+| `zone_focused` | Move the camera to the zone the operator is looking at, or frame the whole venue when `zoneId` is null. |
 
 AI advice is intentionally absent from the Unity contract. It is an operator decision aid in Electron, not simulation truth.
+
+## Operator focus
+
+Selecting a zone or an incident in the control room publishes a focus on the run, and
+every snapshot carries it. Unity does not need the event stream for this: polling
+`GET /simulations/{run}?client=unity` is enough.
+
+```json
+"focus": {
+  "zoneId": "929873b7-5341-42c4-9183-fd4b2bb1700e",
+  "zoneKey": "east",
+  "zoneName": "East Entrance",
+  "incidentId": "c9da97f3-e888-4a26-8a67-f1fc6138dd84",
+  "sequence": 7,
+  "setAt": "2026-09-08T17:04:11Z",
+  "camera": { "x": 30.0, "z": 62.5, "width": 30.0, "depth": 30.0, "units": "metres" }
+}
+```
+
+`camera` is in the same coordinate system as `positions` and `responderPositions`:
+metres from `coordinateSystem.origin`, x east and z north. `x`/`z` are the centre of
+the zone and `width`/`depth` its extent, so a camera can frame it with whatever
+padding the scene wants.
+
+`sequence` increases by one per distinct focus change and never moves backwards.
+Apply a focus only when its `sequence` is higher than the last one applied, so a
+snapshot that arrives late cannot pull the camera back to an old zone. Reselecting
+the same zone does not advance it. A `zoneId` of `null` means the operator cleared
+the selection and the camera should return to the whole venue.
 
 ## Message shape
 

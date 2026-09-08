@@ -16,7 +16,7 @@ class SimulationRun extends Model
 
     protected function casts(): array
     {
-        return ['definition' => 'array', 'snapshot' => 'array', 'interventions' => 'array', 'last_tick_at' => 'immutable_datetime'];
+        return ['definition' => 'array', 'snapshot' => 'array', 'interventions' => 'array', 'focus' => 'array', 'last_tick_at' => 'immutable_datetime'];
     }
 
     public function venueEvent(): BelongsTo

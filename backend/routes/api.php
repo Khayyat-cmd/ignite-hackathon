@@ -14,6 +14,7 @@ Route::prefix('v1/demo')->middleware('throttle:api')->group(function () {
     Route::post('simulations/{run}/location-retrieval/v0/retrieve', [SimulationController::class, 'retrieve']);
     Route::post('simulations', [SimulationController::class, 'store']);
     Route::post('simulations/{run}/control', [SimulationController::class, 'control']);
+    Route::post('simulations/{run}/focus', [SimulationController::class, 'focus']);
     Route::post('simulations/{run}/copilot', [OperatorCopilotController::class, 'store']);
     Route::post('incidents/{incident}/recommend', [IncidentController::class, 'recommend']);
     Route::post('incidents/{incident}/advice', [IncidentController::class, 'advise']);
