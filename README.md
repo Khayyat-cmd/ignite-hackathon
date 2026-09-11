@@ -65,6 +65,26 @@ flutter run --dart-define=API_URL=http://127.0.0.1:8000/api/v1/demo
 
 Replace `127.0.0.1` with the computer's LAN address for a physical phone. The hackathon build checks for missions every five seconds while open and shows new assignments in the app. Background push requires the team's Firebase and Apple credentials and is tracked as post-prototype setup.
 
+## ML service
+
+The selected hackathon model is the frozen AMAN v1.4 package in
+[`ml/deploy/v1.4`](ml/deploy/v1.4). Start it in a separate terminal:
+
+```powershell
+cd ml/deploy/v1.4
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+python service.py
+```
+
+The service listens at `http://127.0.0.1:8090`. The Laravel backend should call
+`POST /v1/predict`; the frontend and Unity simulation should consume the backend's
+broadcast result. Use `GET /health` and `GET /v1/model-contract` to verify the
+running model and exact 55-feature contract. See the
+[ML deployment guide](ml/deploy/v1.4/README.md) for the sample request and stateful
+alert behavior.
+
 ## Provider setup
 
 Copy the required variable names from `backend/.env.example` into the private `.env`. Never commit `.env`, API keys, client secrets or access tokens.

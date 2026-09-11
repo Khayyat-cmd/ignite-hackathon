@@ -1,0 +1,8 @@
+{
+  "guarantee": "No real-world or distribution-free coverage guarantee",
+  "method": "global_calibration_run_residuals",
+  "offsets": {
+    "p50": -0.0011178569588680964,
+    "p90": 0.008510109280263717
+  }
+}

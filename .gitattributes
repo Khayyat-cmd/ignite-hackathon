@@ -1,0 +1,5 @@
+# Frozen ML artifacts are byte-hashed; never rewrite their line endings.
+ml/deploy/v1.4/** text eol=lf
+ml/notebooks/*.ipynb text eol=lf
+ml/*.md text eol=lf
+ml/.gitignore text eol=lf
