@@ -97,4 +97,77 @@ class DemoApiTest extends TestCase
         $this->travel(16)->seconds();
         $this->assertSame('UNKNOWN', $provider->verifyAssignedArea($definition, 'south', $location)['verificationResult']);
     }
+
+    public function test_attendees_move_at_walking_speed_without_changing_the_position_shape(): void
+    {
+        $definition = json_decode(
+            file_get_contents(resource_path('simulation/stadium.json')),
+            true,
+            512,
+            JSON_THROW_ON_ERROR
+        );
+        $provider = app(LocationProvider::class);
+        $attendeeCount = 1000;
+        $sampleSeconds = 5;
+        $maximumStep = $definition['maxWalkingSpeedMetersPerSecond'] * $sampleSeconds;
+        $largestStep = 0.0;
+        $zoneCountsAt = function (int $elapsed, array $interventions) use ($attendeeCount, $definition, $provider): array {
+            $counts = array_fill_keys(array_column($definition['zones'], 'key'), 0);
+
+            for ($index = 0; $index < $attendeeCount; $index++) {
+                $point = $provider->point($definition, $index, $attendeeCount, $elapsed, $interventions);
+                foreach ($definition['zones'] as $zone) {
+                    [$left, $bottom, $right, $top] = $zone['bounds'];
+                    if ($point['x'] > $left && $point['x'] < $right && $point['y'] > $bottom && $point['y'] < $top) {
+                        $counts[$zone['key']]++;
+
+                        break;
+                    }
+                }
+            }
+
+            return $counts;
+        };
+
+        for ($index = 0; $index < $attendeeCount; $index++) {
+            $previous = $provider->point($definition, $index, $attendeeCount, 0);
+
+            for ($elapsed = $sampleSeconds; $elapsed <= 220; $elapsed += $sampleSeconds) {
+                $interventions = $elapsed >= 65 ? ['east' => 65] : [];
+                if ($elapsed >= 150) {
+                    $interventions['south'] = 150;
+                }
+
+                $current = $provider->point($definition, $index, $attendeeCount, $elapsed, $interventions);
+                $largestStep = max($largestStep, hypot(
+                    $current['x'] - $previous['x'],
+                    $current['y'] - $previous['y']
+                ));
+                $previous = $current;
+            }
+        }
+
+        $this->assertSame(['x', 'y'], array_keys($previous));
+        $this->assertLessThanOrEqual($maximumStep + 0.001, $largestStep);
+
+        $bottleneck = $zoneCountsAt(65, []);
+        $eastRecovered = $zoneCountsAt(150, ['east' => 65]);
+        $southRecovered = $zoneCountsAt(205, ['east' => 65, 'south' => 150]);
+        $this->assertGreaterThan($bottleneck['north'], $bottleneck['east']);
+        $this->assertGreaterThan($bottleneck['south'], $bottleneck['east']);
+        $this->assertLessThan($bottleneck['east'], $eastRecovered['east']);
+        $this->assertGreaterThan($bottleneck['south'], $eastRecovered['south']);
+        $this->assertLessThan($eastRecovered['south'], $southRecovered['south']);
+
+        $northCorridor = $provider->point($definition, 7, $attendeeCount, 100, ['east' => 65]);
+        $southConcourse = $provider->point($definition, 7, $attendeeCount, 145, ['east' => 65]);
+        $this->assertGreaterThan(0, $northCorridor['x']);
+        $this->assertLessThan(80, $northCorridor['x']);
+        $this->assertGreaterThan(-15, $northCorridor['y']);
+        $this->assertLessThan(15, $northCorridor['y']);
+        $this->assertGreaterThan(15, $southConcourse['x']);
+        $this->assertLessThan(65, $southConcourse['x']);
+        $this->assertGreaterThan(-45, $southConcourse['y']);
+        $this->assertLessThan(-25, $southConcourse['y']);
+    }
 }

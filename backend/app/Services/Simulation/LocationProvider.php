@@ -33,16 +33,32 @@ final class LocationProvider
             }
         }
         [$start, $end] = $route['points'];
-        $progress = min(1, max(0, ($elapsed - $start['t']) / ($end['t'] - $start['t'])));
+        $progress = $this->movementProgress(
+            $start,
+            $end,
+            $elapsed - $start['t'],
+            $end['t'] - $start['t'],
+            $definition['maxWalkingSpeedMetersPerSecond']
+        );
         $x = $start['x'] + ($end['x'] - $start['x']) * $progress;
         $y = $start['y'] + ($end['y'] - $start['y']) * $progress;
         $eastRecoveryApplied = false;
         if (isset($interventions['east']) && isset($route['recovery'])) {
             $at = $this->point($definition, $index, $count, $interventions['east'], []);
-            $recovery = min(1, max(0, ($elapsed - $interventions['east']) / $definition['recovery']['seconds']));
             $destination = $this->recoveryDestination($route, $index);
-            $x = $at['x'] + ($destination['point']['x'] + $this->offset($index, 31) - $at['x']) * $recovery;
-            $y = $at['y'] + ($destination['point']['y'] + $this->offset($index, 47) - $at['y']) * $recovery;
+            $targets = array_map(fn (array $point): array => [
+                'x' => $point['x'] + $this->offset($index, 31),
+                'y' => $point['y'] + $this->offset($index, 47),
+            ], [...($destination['waypoints'] ?? []), $destination['point']]);
+            $recoveryPoint = $this->pointAlongPath(
+                $at,
+                $targets,
+                $elapsed - $interventions['east'],
+                $definition['recovery']['seconds'],
+                $definition['maxWalkingSpeedMetersPerSecond']
+            );
+            $x = $recoveryPoint['x'];
+            $y = $recoveryPoint['y'];
             $eastRecoveryApplied = true;
         }
 
@@ -50,11 +66,21 @@ final class LocationProvider
             $beforeSouth = $interventions;
             unset($beforeSouth['south']);
             $at = $this->point($definition, $index, $count, $interventions['south'], $beforeSouth);
-            $recovery = min(1, max(0, ($elapsed - $interventions['south']) / $definition['southRecovery']['seconds']));
             $destination = $this->southRecoveryDestination($route, $index);
+            $target = [
+                'x' => $destination['x'] + $this->offset($index, 31),
+                'y' => $destination['y'] + $this->offset($index, 47),
+            ];
+            $recovery = $this->movementProgress(
+                $at,
+                $target,
+                $elapsed - $interventions['south'],
+                $definition['southRecovery']['seconds'],
+                $definition['maxWalkingSpeedMetersPerSecond']
+            );
 
-            return ['x' => $at['x'] + ($destination['x'] + $this->offset($index, 31) - $at['x']) * $recovery,
-                'y' => $at['y'] + ($destination['y'] + $this->offset($index, 47) - $at['y']) * $recovery];
+            return ['x' => $at['x'] + ($target['x'] - $at['x']) * $recovery,
+                'y' => $at['y'] + ($target['y'] - $at['y']) * $recovery];
         }
 
         return ['x' => $eastRecoveryApplied ? $x : $x + $this->offset($index, 31),
@@ -96,6 +122,59 @@ final class LocationProvider
     private function offset(int $index, int $factor): float
     {
         return (($index * $factor) % 997) / 997 * 16 - 8;
+    }
+
+    private function movementProgress(array $start, array $end, int $elapsed, int $plannedSeconds, float $maximumSpeed): float
+    {
+        if ($elapsed <= 0) {
+            return 0;
+        }
+
+        $distance = hypot($end['x'] - $start['x'], $end['y'] - $start['y']);
+        if ($distance === 0.0) {
+            return 1;
+        }
+
+        $plannedProgress = $plannedSeconds > 0 ? min(1, $elapsed / $plannedSeconds) : 1;
+        $speedLimitedProgress = min(1, $elapsed * $maximumSpeed / $distance);
+
+        return min($plannedProgress, $speedLimitedProgress);
+    }
+
+    private function pointAlongPath(array $start, array $targets, int $elapsed, int $plannedSeconds, float $maximumSpeed): array
+    {
+        $segments = [];
+        $distance = 0.0;
+        $from = $start;
+        foreach ($targets as $target) {
+            $length = hypot($target['x'] - $from['x'], $target['y'] - $from['y']);
+            $segments[] = ['from' => $from, 'to' => $target, 'length' => $length];
+            $distance += $length;
+            $from = $target;
+        }
+
+        if ($distance === 0.0 || $elapsed <= 0) {
+            return $start;
+        }
+
+        $plannedProgress = $plannedSeconds > 0 ? min(1, $elapsed / $plannedSeconds) : 1;
+        $travelled = min($distance * $plannedProgress, $elapsed * $maximumSpeed);
+        foreach ($segments as $segment) {
+            if ($segment['length'] === 0.0) {
+                continue;
+            }
+            if ($travelled <= $segment['length']) {
+                $progress = $travelled / $segment['length'];
+
+                return [
+                    'x' => $segment['from']['x'] + ($segment['to']['x'] - $segment['from']['x']) * $progress,
+                    'y' => $segment['from']['y'] + ($segment['to']['y'] - $segment['from']['y']) * $progress,
+                ];
+            }
+            $travelled -= $segment['length'];
+        }
+
+        return $targets[array_key_last($targets)] ?? $start;
     }
 
     public function retrieve(array $request, array $definition, int $count, int $elapsed, array $interventions, CarbonImmutable $now): array
