@@ -1,0 +1,12 @@
+__pycache__/
+.pytest_cache/
+.pytest-tmp/
+.pytest-*/
+.venv*/
+artifacts/
+bundles/
+*.py[cod]
+data/generated/
+*.egg-info/
+build/
+dist/
