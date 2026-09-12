@@ -51,6 +51,17 @@ The user's real `OPENAI_API_KEY` is in `backend/.env`. A minimal live request re
 - Secure Electron shell with context isolation, renderer sandboxing, Node integration disabled, a narrow preload API, and external navigation controls.
 - Fixed three-pane control-room shell that fills the window and never scrolls the page: a left rail with the situation summary and zone conditions, a centre stage with the zone schematic and the response team, and a right rail with the incident queue and the selected incident.
 - The zone schematic carries the operational overlay: an incident badge in each affected zone's top-right corner, a pin per located responder (from `signals.location`), and a dashed link with the backend distance between the focused incident and its responder. Zone name and headcount sit in a label band above each polygon so pins and badges never cover them. The band is laid out left to right and a label wider than its own zone lifts to the row above, so a narrow zone's headcount is never painted over by its neighbour's label.
+- The incident queue reads as a worklist rather than a log: rows sort decisions first, then
+  responses under way, then closed incidents, and each row carries the zone's risk word and
+  a running `open m:ss` clock measured against the snapshot's own sample time.
+- While the agent is still running, the incident panel says so. The backend withholds a
+  selection until advice lands, which left the console claiming "No eligible responder" for
+  the length of an agent run — contradicting the brief's own analyzing badge on the same
+  screen. Ranked candidates with pending advice now read as awaiting the recommendation.
+- The unacknowledged-dispatch escalation is visible. `decision.escalation` is rendered above
+  the brief: a reminder sent to a reachable responder, or the responder dropped as
+  unreachable while the AI finds another. It clears when the operator approves the next
+  dispatch, which is when the backend clears the field.
 - An attention bar above the workspace counts incidents awaiting dispatch approval, names their zones, jumps to the oldest, and sounds a short WebAudio cue when the count rises. The cue is mutable and the preference persists in `localStorage`; new queue rows flash briefly on arrival.
 - Zone rows carry a client-side density trend: a sparkline over the last 24 polls plus a signed delta and window (`↑ +0.28 /m² · 30s`). History lives only in the renderer and resets with the window.
 - One focus links the three panes. Selecting an incident highlights its zone on the map and in the left rail and highlights the responder assigned or recommended for it; selecting a zone filters the queue and opens its incident; selecting a responder opens the incident it is assigned to. Responder cards show their current assignment and their live mobile-data reachability; the old "Updated <time>" and "Location ±<n> m" tags were removed as unreadable mid-incident.

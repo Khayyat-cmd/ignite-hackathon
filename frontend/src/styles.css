@@ -399,17 +399,17 @@ input:disabled, textarea:disabled { color: var(--text-3); }
 .copilot-compose { display: grid; grid-template-columns: 1fr auto; gap: 6px; }
 .copilot-starters + .copilot-compose { margin-top: auto; }
 
-.queue { flex: 0 0 auto; max-height: 30%; overflow-y: auto; border-bottom: 1px solid var(--line); }
+.queue { flex: 0 0 auto; max-height: 44%; overflow-y: auto; border-bottom: 1px solid var(--line); }
 .queue-row {
   width: 100%;
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: center;
-  gap: 3px var(--sp-2);
-  padding: 9px var(--sp-3);
+  gap: 5px var(--sp-2);
+  padding: 11px var(--sp-3);
   border: 0;
   border-bottom: 1px solid var(--line);
-  border-inline-start: 2px solid var(--risk, transparent);
+  border-inline-start: 3px solid var(--risk, transparent);
   background: none;
   color: inherit;
   text-align: start;
@@ -418,7 +418,10 @@ input:disabled, textarea:disabled { color: var(--text-3); }
 .queue-row:hover { background: var(--panel); }
 .queue-row.selected { background: var(--accent-soft); }
 .queue-row strong { font-size: var(--fs-md); font-weight: 600; }
-.queue-row .queue-meta { grid-column: 1 / -1; color: var(--text-3); font-size: var(--fs-micro); }
+.queue-row .queue-meta { grid-column: 1 / -1; color: var(--text-2); font-size: var(--fs-sm); }
+/* The waiting time is the figure an operator scans down the column, so it is tabular
+   and monospaced like every other reading in the console. */
+.queue-clock { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--text-2); }
 .filter-chip { display: flex; align-items: center; gap: 6px; width: 100%; padding: 6px var(--sp-3); border: 0; border-bottom: 1px solid var(--line); background: var(--accent-soft); color: #9dc3ec; font-size: var(--fs-micro); cursor: pointer; text-align: start; }
 
 .detail { padding: var(--sp-3); display: grid; gap: var(--sp-3); align-content: start; }
@@ -430,6 +433,24 @@ input:disabled, textarea:disabled { color: var(--text-3); }
 .row span { color: var(--text-2); }
 .row b { font-weight: 600; text-align: end; }
 .hint { color: var(--text-3); font-size: var(--fs-sm); line-height: 1.5; }
+/* The escalation line explains a state the operator did not cause: a dispatch that went
+   unacknowledged. It reads as a status, not an error, so it borrows the notice palette
+   rather than the alert one, and the reassignment case carries the critical accent. */
+.escalation {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
+  border-inline-start: 3px solid var(--warn);
+  background: #241d10;
+  color: #e6c384;
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+}
+.escalation-reassigned { border-inline-start-color: var(--crit); background: #2a1614; color: #f0a49d; }
+.escalation-time { margin-inline-start: auto; font-family: var(--mono); font-variant-numeric: tabular-nums; opacity: 0.75; }
+
 .arrival-status { display: flex; align-items: center; gap: 7px; padding: 7px 9px; border-radius: var(--r-sm); background: var(--panel-2); color: var(--text); font-size: var(--fs-sm); font-weight: 500; }
 
 .empty-state { padding: 56px var(--sp-4); text-align: center; }
