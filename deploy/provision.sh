@@ -74,9 +74,42 @@ if [ -f "${ROOT}/backend/storage/app/private/firebase-service-account.json" ]; t
 fi
 
 log "Nginx"
-sed "s#__PHP_FPM_SOCK__#${PHP_SOCK}#" "${ROOT}/deploy/nginx-aman.conf" > "/etc/nginx/sites-available/${DOMAIN}"
-ln -sfn "/etc/nginx/sites-available/${DOMAIN}" "/etc/nginx/sites-enabled/${DOMAIN}"
-nginx -t
+VHOST="/etc/nginx/sites-available/${DOMAIN}"
+INTERNAL_VHOST="/etc/nginx/sites-available/aman-internal"
+# This box is shared. The agent's loopback listener must not land on a port
+# another project already holds, and a vhost that fails to parse must never be
+# left enabled for someone else's reload to trip over.
+AGENT_VHOST_PORT=8127
+if ss -ltn 2>/dev/null | grep -q "127.0.0.1:${AGENT_VHOST_PORT} " \
+   && ! grep -q "listen 127.0.0.1:${AGENT_VHOST_PORT};" "${INTERNAL_VHOST}" 2>/dev/null; then
+  echo "127.0.0.1:${AGENT_VHOST_PORT} is already in use by another service." >&2
+  echo "Pick a free port in deploy/nginx-aman-internal.conf and AMAN_CAMARA_TOOL_URL." >&2
+  exit 1
+fi
+
+# Write both vhosts, keeping a copy of whatever was enabled so a config that
+# fails to parse can be rolled back instead of reloaded.
+BACKUP_DIR="$(mktemp -d)"
+for name in "${DOMAIN}" aman-internal; do
+  [ -f "/etc/nginx/sites-available/${name}" ] && cp "/etc/nginx/sites-available/${name}" "${BACKUP_DIR}/${name}"
+done
+sed "s#__PHP_FPM_SOCK__#${PHP_SOCK}#" "${ROOT}/deploy/nginx-aman.conf" > "${VHOST}"
+sed "s#__PHP_FPM_SOCK__#${PHP_SOCK}#" "${ROOT}/deploy/nginx-aman-internal.conf" > "${INTERNAL_VHOST}"
+ln -sfn "${VHOST}" "/etc/nginx/sites-enabled/${DOMAIN}"
+ln -sfn "${INTERNAL_VHOST}" "/etc/nginx/sites-enabled/aman-internal"
+if ! nginx -t; then
+  for name in "${DOMAIN}" aman-internal; do
+    if [ -f "${BACKUP_DIR}/${name}" ]; then
+      cp "${BACKUP_DIR}/${name}" "/etc/nginx/sites-available/${name}"
+    else
+      rm -f "/etc/nginx/sites-enabled/${name}" "/etc/nginx/sites-available/${name}"
+    fi
+  done
+  rm -rf "${BACKUP_DIR}"
+  echo "nginx rejected the new config; the previous vhosts were restored and nginx was not reloaded." >&2
+  exit 1
+fi
+rm -rf "${BACKUP_DIR}"
 systemctl reload nginx
 
 log "TLS"

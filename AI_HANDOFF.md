@@ -170,7 +170,7 @@ own nginx vhost.
 | `/api/…` | Laravel front controller through PHP 8.4 FPM |
 | `/downloads/aman-responder.apk` | Release APK for attendees |
 | `127.0.0.1:8091` | CAMARA orchestration agent, `aman-agent.service` — loopback only |
-| `127.0.0.1:8127` | nginx listener serving the agent Laravel's tool gateway — loopback only |
+| `127.0.0.1:8127` | nginx listener serving the agent Laravel's tool gateway — loopback only, its own vhost file so certbot never rewrites it |
 
 Deploy with `OPENAI_API_KEY=… CAMARA_API_KEY=… DB_PASSWORD=… bash deploy/release.sh`.
 It builds both artifacts, ships them along with `ml/agent`, writes the production
