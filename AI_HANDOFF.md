@@ -27,6 +27,11 @@ Laravel is the source of truth. Clients do not communicate directly. The AI advi
 ### Laravel backend
 
 - Demo API under `/api/v1/demo` for simulations, incidents, responder directory, missions, acknowledgement, and messages.
+- Attendee positions live on disk, not in the run row: `PositionStore` writes
+  `storage/app/private/simulation/positions/{run}.json` each tick and the `client=unity`
+  snapshot pages its slices from there. Persisting 1.45 MB of positions in
+  `simulation_runs.snapshot` every five seconds is what filled the server's disk with
+  MySQL binary logs on 2026-09-12.
 - Provider-neutral `IncidentAdvisor` contract with two implementations. `AgentIncidentAdvisor` calls the CAMARA orchestration agent and is bound whenever `AMAN_AGENT_URL` is set; `OpenAiIncidentAdvisor` is the single-call fallback for a machine not running the agent.
 - `POST /api/internal/agent/camara` is the agent's private tool gateway, served by `CamaraEvidenceGateway`. Bearer-token authenticated, 503 when unconfigured, denied by the public vhost, and reachable in production only over a loopback nginx listener on `127.0.0.1:8127`.
 - The gateway declares provenance per operation and never upgrades it: Device Reachability is a live Nokia Network-as-Code call (`live_camara`); location verification and congestion insights come from the venue simulation (`simulated_fixture`). A run touching any simulated source reports `evidenceMode: simulated_fixture`.
@@ -189,6 +194,31 @@ server-address screen: `AmanApi._allowServerConfiguration` defaults to false whe
 separate `ALLOW_SERVER_CONFIGURATION` define is still accepted but must not be relied on —
 passing it to `flutter build apk` produced a byte-identical `libapp.so` either way, which is
 why the first APK published here still asked for an IP address. Reverb is not deployed: neither client opens a websocket.
+
+### Disk exhaustion, 2026-09-12
+
+The demo went down with every `/api/…` request hanging until the console's 45-second
+timeout, while the static console still loaded. The VPS root disk was 100% full:
+`/var/lib/mysql` held 1375 binary logs totalling 134 GB, against databases of about
+100 MB. MySQL's default `binlog_expire_logs_seconds` is 30 days and nothing on this
+box replicates, so nothing ever trimmed them; with the disk full every write blocked
+(`errno 28`, then `1205 Lock wait timeout exceeded` on the `cache` table) and the
+PHP-FPM pool filled with stuck requests.
+
+What produced that volume: the five-second tick rewrote `simulation_runs.snapshot`,
+a 1.45 MB JSON blob of all attendee positions, and row-format binary logging records
+the before and after image of the row — roughly 3 MB of binary log per tick, about
+2 GB for every hour of simulation.
+
+Two fixes: `App\Services\Simulation\PositionStore` now keeps attendee positions in
+`storage/app/private/simulation/positions/{run}.json` instead of the run row, so a tick
+writes kilobytes to MySQL and the Unity read path slices the same list from disk; and
+`deploy/provision.sh` writes `/etc/mysql/mysql.conf.d/zz-aman-binlog.cnf` with a
+one-day retention and `binlog_row_image = MINIMAL`, then purges. The API contract is
+unchanged — `client=unity` still returns paged `positions` with `nextOffset`.
+
+Recovering a full disk needs care: `PURGE BINARY LOGS` itself hangs at zero free space,
+because MySQL cannot rewrite `binlog.index`. Free a few GB elsewhere first, then purge.
 
 Verified live on 2026-09-07: HTTPS with the redirect from port 80, simulation ticking every
 five seconds, Nokia reachability returning three of four responders data-reachable, an

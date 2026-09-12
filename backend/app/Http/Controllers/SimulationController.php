@@ -11,6 +11,7 @@ use App\Services\Demo\DemoWorkspace;
 use App\Services\EventJournal;
 use App\Services\Simulation\EventSimulation;
 use App\Services\Simulation\LocationProvider;
+use App\Services\Simulation\PositionStore;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -18,6 +19,8 @@ use Illuminate\Support\Facades\DB;
 
 class SimulationController extends Controller
 {
+    public function __construct(private PositionStore $positionStore) {}
+
     public function index(DemoWorkspace $workspace): array
     {
         return ['data' => SimulationRun::where('organization_id', $workspace->operator()->organization_id)
@@ -138,7 +141,7 @@ class SimulationController extends Controller
         if (($data['client'] ?? 'operator') === 'unity') {
             $offset = (int) ($data['offset'] ?? 0);
             $limit = (int) ($data['limit'] ?? 10000);
-            $result['positions'] = array_slice($snapshot['positions'] ?? [], $offset, $limit);
+            $result['positions'] = $this->positionStore->slice($run->id, $offset, $limit);
             $result['nextOffset'] = $offset + $limit < $run->attendee_count ? $offset + $limit : null;
             $result['coordinateSystem'] = ['origin' => $run->definition['origin'], 'units' => 'metres', 'x' => 'east', 'z' => 'north', 'y' => 'height'];
         } else {
