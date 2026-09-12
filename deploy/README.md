@@ -43,6 +43,19 @@ goes straight into the server `.env` and the agent's own environment file, and i
 never echoed. Redeploys can omit it — but the first deploy after the agent landed
 must supply it, or the script stops before restarting anything.
 
+A change that touches neither client does not need either client rebuilt, and the APK
+build is the slow half of a release:
+
+```sh
+bash deploy/release.sh --backend-only    # Laravel + agent only
+bash deploy/release.sh --skip-apk        # console too, but keep the published APK
+```
+
+A skipped client is not uploaded either, so the server keeps the console build and APK
+it already serves rather than having a stale local build rsynced over it. Everything
+else is unchanged: the backend and agent still ship and `provision.sh` still runs, so
+migrations, caches, nginx and the systemd units are reconciled on every deploy.
+
 ## Server-side pieces
 
 - `nginx-aman.conf` — public vhost template; `__PHP_FPM_SOCK__` is substituted at provision time.

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Runs LOCALLY. Builds both artifacts, ships them to the VPS, and provisions.
+# Runs LOCALLY. Builds both client artifacts, ships them to the VPS, and provisions.
 #
 #   OPENAI_API_KEY=... DB_PASSWORD=... bash deploy/release.sh
+#   bash deploy/release.sh --backend-only     # Laravel + agent only, no client builds
 #
 # OPENAI_API_KEY is only needed the first time (or when it changes); it is written
 # straight into the server .env and never printed.
@@ -13,16 +14,51 @@ API_URL="https://${DOMAIN}/api/v1/demo"
 ROOT="/var/www/aman"
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+# A backend-only change needs neither client rebuilt, and the APK build is minutes.
+# A skipped client is not shipped either: the server keeps the artifact it already
+# serves rather than having a stale local build rsynced over it.
+BUILD_CONSOLE=1
+BUILD_APK=1
+usage() {
+  cat <<'USAGE'
+Usage: bash deploy/release.sh [--backend-only] [--skip-console] [--skip-apk]
+
+  --backend-only   Skip both client builds and their uploads (Laravel + agent only).
+  --skip-console   Leave the deployed operator console as it is.
+  --skip-apk       Leave the published responder APK as it is.
+
+Environment: HOST, DOMAIN, DB_PASSWORD, OPENAI_API_KEY, CAMARA_API_KEY, OPENAI_MODEL.
+USAGE
+}
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --backend-only) BUILD_CONSOLE=0; BUILD_APK=0 ;;
+    --skip-console) BUILD_CONSOLE=0 ;;
+    --skip-apk) BUILD_APK=0 ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "unknown option: $1" >&2; usage >&2; exit 2 ;;
+  esac
+  shift
+done
+
 log() { printf '\n== %s\n' "$*"; }
 
-log "Operator console build"
-( cd "${REPO}/frontend"
-  export NVM_DIR="$HOME/.nvm"; . "$NVM_DIR/nvm.sh"; nvm use 24 >/dev/null
-  VITE_API_URL="${API_URL}" npm run build )
+if [ "${BUILD_CONSOLE}" = 1 ]; then
+  log "Operator console build"
+  ( cd "${REPO}/frontend"
+    export NVM_DIR="$HOME/.nvm"; . "$NVM_DIR/nvm.sh"; nvm use 24 >/dev/null
+    VITE_API_URL="${API_URL}" npm run build )
+else
+  log "Operator console build skipped"
+fi
 
-log "Responder APK build"
-( cd "${REPO}/responder-mobile"
-  flutter build apk --release --dart-define="API_URL=${API_URL}" --dart-define=ALLOW_SERVER_CONFIGURATION=false )
+if [ "${BUILD_APK}" = 1 ]; then
+  log "Responder APK build"
+  ( cd "${REPO}/responder-mobile"
+    flutter build apk --release --dart-define="API_URL=${API_URL}" --dart-define=ALLOW_SERVER_CONFIGURATION=false )
+else
+  log "Responder APK build skipped"
+fi
 
 # The database password only has to be supplied on the first deploy; after that the
 # server's own .env is the record, so redeploys need neither a stored copy nor a reset.
@@ -48,9 +84,13 @@ rsync -az --delete \
 
 log "Upload deploy scripts, console build, APK"
 rsync -az "${REPO}/deploy/" "${HOST}:${ROOT}/deploy/"
-rsync -az --delete --exclude 'downloads/' "${REPO}/frontend/dist/" "${HOST}:${ROOT}/web/"
-rsync -az "${REPO}/responder-mobile/build/app/outputs/flutter-apk/app-release.apk" \
-  "${HOST}:${ROOT}/web/downloads/aman-responder.apk"
+if [ "${BUILD_CONSOLE}" = 1 ]; then
+  rsync -az --delete --exclude 'downloads/' "${REPO}/frontend/dist/" "${HOST}:${ROOT}/web/"
+fi
+if [ "${BUILD_APK}" = 1 ]; then
+  rsync -az "${REPO}/responder-mobile/build/app/outputs/flutter-apk/app-release.apk" \
+    "${HOST}:${ROOT}/web/downloads/aman-responder.apk"
+fi
 
 log "Agent and gateway tokens"
 # Generated on the server on first deploy and reused after that, so neither
