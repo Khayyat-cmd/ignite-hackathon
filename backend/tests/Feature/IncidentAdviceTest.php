@@ -76,6 +76,10 @@ class IncidentAdviceTest extends TestCase
         }
 
         $incident = Incident::where('venue_event_id', $run->venue_event_id)->firstOrFail();
+        $this->assertSame('disabled', data_get($incident->decision, 'adviceStatus'));
+        $this->assertSame('deterministic_fallback', data_get($incident->decision, 'recommendationSource'));
+        $this->postJson("/api/v1/demo/incidents/{$incident->id}/advice")->assertAccepted();
+        $incident->refresh();
         $this->assertSame('ready', data_get($incident->decision, 'adviceStatus'));
         $this->assertSame($incident->responder_id, data_get($incident->decision, 'advice.recommendedResponderId'));
         $this->assertSame('gpt-5.6-luna', data_get($incident->decision, 'advice.model'));
