@@ -177,7 +177,10 @@ own nginx vhost.
 | `127.0.0.1:8091` | CAMARA orchestration agent, `aman-agent.service` — loopback only |
 | `127.0.0.1:8127` | nginx listener serving the agent Laravel's tool gateway — loopback only, its own vhost file so certbot never rewrites it |
 
-Deploy with `OPENAI_API_KEY=… CAMARA_API_KEY=… DB_PASSWORD=… bash deploy/release.sh`.
+Deploy with `OPENAI_API_KEY=… CAMARA_API_KEY=… DB_PASSWORD=… bash deploy/release.sh`. A
+change that touches neither client takes `bash deploy/release.sh --backend-only`, which
+skips the console and APK builds and their uploads; `--skip-console` and `--skip-apk`
+skip one each.
 It builds both artifacts, ships them along with `ml/agent`, writes the production
 environment, provisions the server, and verifies the URLs. See `deploy/README.md`.
 
