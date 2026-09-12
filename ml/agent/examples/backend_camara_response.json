@@ -1,0 +1,11 @@
+{
+  "operation": "device_reachability",
+  "responderId": "responder-7",
+  "provider": "Nokia Network as Code",
+  "api": "CAMARA Device Reachability Status",
+  "source": "live_camara",
+  "status": "ok",
+  "observedAt": "2026-09-12T12:00:01Z",
+  "checkedAt": "2026-09-12T12:00:02Z",
+  "dataReachable": true
+}

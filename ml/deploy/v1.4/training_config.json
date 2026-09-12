@@ -1,9 +1,0 @@
-{
-  "bootstrap_replicates": 200,
-  "compute": "cpu",
-  "development": false,
-  "max_rounds": 900,
-  "model_version": "aman-risk-v1.4-synthetic",
-  "seed": 20260918,
-  "stopping_rounds": 60
-}

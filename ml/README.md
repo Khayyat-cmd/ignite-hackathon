@@ -1,46 +1,145 @@
-# AMAN ML v1.4
+# AMAN CAMARA AI agent
 
-This directory contains only the final AMAN v1.4 hackathon model, its Colab
-training inputs, and the deployable inference service.
+This folder is AMAN's complete AI contribution. AMAN uses one focused, read-only agent that
+chooses and calls CAMARA network tools, explains the evidence, and recommends an
+eligible responder for an operator to approve or override.
 
-## Final files
+## Decision flow
 
-- `notebooks/AMAN_Training_Colab_v1.4_FINAL.ipynb`: final Colab notebook.
-- `bundles/AMAN_Colab_Training_v1.4_FINAL.zip`: final self-contained training
-  bundle. It is intentionally Git-ignored because it is 232 MB.
-- `deploy/v1.4/`: frozen models, runtime code, evaluation evidence, API service,
-  request example, and integration documentation.
+```text
+Incident + eligible responders
+            |
+            v
+OpenAI Agents SDK / gpt-5.6-luna
+    |              |                 |
+    v              v                 v
+Device          Location          Congestion
+Reachability    Verification      Insights
+    \______________|_________________/
+                   v
+       validated recommendation
+                   v
+        mandatory human approval
+```
 
-## Train on Google Colab
+The agent cannot dispatch, message, mutate incidents, or call arbitrary URLs.
+Every recommendation is checked in code against the eligible-responder allowlist
+and the captured CAMARA tool trace. A model or provider failure returns a safe
+`degraded` result with no recommendation; the existing deterministic backend
+ranking remains the operational fallback.
 
-1. Upload `AMAN_Training_Colab_v1.4_FINAL.ipynb` with **File > Upload notebook**.
-2. Keep the runtime on **CPU**. The pinned LightGBM build does not use a T4 GPU.
-3. Upload `AMAN_Colab_Training_v1.4_FINAL.zip` to the Colab Files sidebar without
-   extracting it.
-4. Wait until the upload indicator finishes, then select **Runtime > Run all**.
-5. Download both result ZIPs created by the final cell.
+## Run now with demo fixtures
 
-Training executes on Colab, not on the laptop. V1.4 uses synthetic simulation and
-must not be presented as validated real-world crowd-safety performance.
-
-## Run inference
+Fixture mode exercises the real agent/tool loop while the backend team finishes
+the live CAMARA gateway. Fixture evidence is clearly labelled simulated and is
+never inserted directly into the model prompt.
 
 ```powershell
-cd deploy/v1.4
+cd ml\agent
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
+$env:OPENAI_API_KEY = "your OpenAI API key"
+$env:AMAN_CAMARA_MODE = "fixture"
 python service.py
 ```
 
-The service listens on `http://127.0.0.1:8090` and exposes:
+Do not copy or commit `backend/.env`. The deployment process should inject the
+same server-side `OPENAI_API_KEY` into this service's process environment.
+
+The service listens on `127.0.0.1:8091` by default:
 
 - `GET /health`
-- `GET /v1/model-contract`
-- `POST /v1/predict`
-- `POST /v1/reset-event`
+- `POST /v1/incidents/advise`
 
-The Laravel backend should call the inference service. The frontend and Unity
-simulation should consume the backend's broadcast response. See
-`deploy/v1.4/README.md` and `deploy/v1.4/INTEGRATION.md` for the exact 55-feature
-request contract and stateful alert behavior.
+Use `agent/examples/fixture_request.json` as the POST body. If
+`AMAN_AGENT_SERVICE_TOKEN` is set, include
+`Authorization: Bearer <token>`. A non-loopback bind refuses to start without
+that token.
+
+## Switch to live CAMARA evidence later
+
+No AI code needs to change. Set:
+
+```text
+AMAN_CAMARA_MODE=backend
+AMAN_CAMARA_TOOL_URL=http://127.0.0.1:8000/api/internal/agent/camara
+AMAN_CAMARA_TOOL_TOKEN=<private service token>
+```
+
+The backend gateway receives one server-to-server POST per tool call:
+
+```json
+{
+  "requestId": "demo-incident-42-v1",
+  "incidentId": "incident-42",
+  "zoneId": "zone-a",
+  "operation": "device_reachability",
+  "responderId": "responder-7"
+}
+```
+
+Supported `operation` values are:
+
+- `device_reachability` — CAMARA Device Reachability Status for a candidate.
+- `location_verification` — CAMARA Location Verification for a candidate.
+- `congestion_insights` — CAMARA Congestion Insights for the incident zone.
+
+The gateway must normalize Nokia Network-as-Code responses to the strict shape in
+`agent/examples/backend_camara_response.json`. It must return
+`source: "live_camara"`; fixture provenance is rejected in backend mode. CAMARA
+credentials, phone identifiers, and raw coordinates remain in Laravel and are
+never exposed to the model, clients, logs, or tool trace.
+
+## Stable backend integration contract
+
+Laravel should POST an incident snapshot and the already-authorized candidate
+allowlist to `/v1/incidents/advise`. The exact input schema is in
+`agent/schemas.py`. Important output fields are:
+
+- `agentStatus`: `completed` or safe `degraded`.
+- `recommendedResponderId`: an allowlisted ID or `null`.
+- `evidenceMode`: `live_camara`, `simulated_fixture`, or `none`.
+- `toolTrace`: concise API calls, reasons, provenance, timestamps, and sanitized results.
+- `requiresHumanApproval`: always `true`.
+
+Use `requestId` as an idempotency key. Repeating the identical request replays the
+cached result; reusing the ID with a different body returns HTTP 409.
+
+Teammate work needed after their branches are ready is intentionally small:
+
+1. Laravel implements the private normalized CAMARA gateway above.
+2. Laravel replaces its direct single-model advice call with one call to this service.
+3. The operator UI renders `toolTrace`, `evidenceMode`, uncertainty, and the approval control.
+
+Unity and the responder app do not call this service or CAMARA directly.
+
+## Validation
+
+All checks are offline and never consume OpenAI or CAMARA quota:
+
+```powershell
+cd ml\agent
+python -m unittest discover -s tests -v
+python evaluate_contract.py
+python -m compileall -q .
+```
+
+The tests cover strict schemas, candidate allowlisting, required evidence,
+unreachable responders, partial location confidence, critical-incident congestion,
+provenance enforcement, safe degradation, authenticated gateway calls, and bounded
+idempotency caching.
+
+## Hackathon compliance
+
+| Requirement | Evidence in this folder |
+| --- | --- |
+| AI agent layer | OpenAI Agents SDK `Agent` + `Runner`, not a one-shot model call |
+| Intelligent CAMARA orchestration | Three model-selected CAMARA function tools with operational reasons |
+| Trusted real-time sources | Backend mode accepts only normalized `live_camara` provenance |
+| Approved AI tooling | OpenAI Agents SDK with `gpt-5.6-luna` |
+| Safe, scalable design | Server-side secrets, timeouts, call budget, strict contracts, idempotency, no CORS |
+| Human control | Read-only recommendations; no dispatch tool; approval invariant enforced in code |
+| Honest demo | Fixture mode is visibly disclosed and cannot masquerade as live evidence |
+
+OpenAI API access is billed separately from a ChatGPT or Codex subscription.

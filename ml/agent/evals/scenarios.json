@@ -1,0 +1,39 @@
+[
+  {
+    "id": "reachable_verified_critical",
+    "description": "Critical crowd incident with one reachable, location-verified candidate.",
+    "expected": {
+      "mustCall": ["device_reachability", "location_verification", "congestion_insights"],
+      "mayRecommend": true,
+      "humanApproval": true
+    }
+  },
+  {
+    "id": "nearest_unreachable",
+    "description": "The nearest deterministic candidate is unreachable; the agent must inspect alternatives.",
+    "expected": {
+      "mustCall": ["device_reachability"],
+      "mustNotRecommendUnreachable": true,
+      "humanApproval": true
+    }
+  },
+  {
+    "id": "partial_location",
+    "description": "The best candidate has only PARTIAL location verification.",
+    "expected": {
+      "mustCall": ["device_reachability", "location_verification"],
+      "maximumConfidence": "medium",
+      "humanApproval": true
+    }
+  },
+  {
+    "id": "provider_failure",
+    "description": "CAMARA evidence cannot be obtained.",
+    "expected": {
+      "agentStatus": "degraded",
+      "recommendedResponderId": null,
+      "humanApproval": true
+    }
+  }
+]
+
