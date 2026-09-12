@@ -78,8 +78,12 @@ rsync -az --delete \
   "${REPO}/backend/" "${HOST}:${ROOT}/backend/"
 
 log "Upload CAMARA agent"
+# agent.env must be excluded by name: `--exclude '.env'` does not match it, so
+# --delete used to remove the server's only copy of the agent's OPENAI_API_KEY and
+# both bearer tokens on every deploy. That made the tokens rotate every time and
+# made the key mandatory on every run.
 rsync -az --delete \
-  --exclude '.venv/' --exclude '__pycache__/' --exclude '.env' \
+  --exclude '.venv/' --exclude '__pycache__/' --exclude '.env' --exclude 'agent.env' \
   "${REPO}/ml/agent/" "${HOST}:${ROOT}/agent/"
 
 log "Upload deploy scripts, console build, APK"
@@ -156,6 +160,15 @@ set_env AMAN_CAMARA_TOOL_TOKEN '${GATEWAY_TOKEN}'
 set_env AMAN_AGENT_TIMEOUT_SECONDS 35
 $( [ -n "${OPENAI_API_KEY:-}" ] && echo "set_env OPENAI_API_KEY '${OPENAI_API_KEY}'" )
 $( [ -n "${OPENAI_MODEL:-}" ] && echo "set_env OPENAI_MODEL '${OPENAI_MODEL}'" )
+# The server's own environment is the record, as it is for DB_PASSWORD: a redeploy
+# that does not carry the key reuses the one already there, and the value is copied
+# between two server-side files without ever crossing the wire or being printed.
+if ! grep -q '^OPENAI_API_KEY=..' "\${ENV_FILE}"; then
+  KEY_LINE="\$(grep -m1 '^OPENAI_API_KEY=..' ${ROOT}/backend/.env || true)"
+  if [ -n "\${KEY_LINE}" ]; then
+    printf '%s\n' "\${KEY_LINE}" >> "\${ENV_FILE}"
+  fi
+fi
 grep -q '^OPENAI_API_KEY=..' "\${ENV_FILE}" || { echo 'OPENAI_API_KEY is not set on the server; pass it once to this script' >&2; exit 1; }
 EOF
 
