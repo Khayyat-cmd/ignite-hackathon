@@ -23,6 +23,7 @@ return [
     'future_tolerance_seconds' => 5,
     'recovery_fraction' => 0.8,
     'resolution_stable_seconds' => 15,
+    'dispatch_ack_timeout_seconds' => (int) env('AMAN_DISPATCH_ACK_TIMEOUT_SECONDS', 20),
     'max_candidates' => 50,
     'max_location_accuracy_meters' => 100,
 ];

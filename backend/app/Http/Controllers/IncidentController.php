@@ -30,7 +30,7 @@ class IncidentController extends Controller
     {
         abort_unless($incident->organization_id === $workspace->operator()->organization_id, 404);
         abort_unless($incident->active_zone_id && data_get($incident->decision, 'candidates'), 409, 'Generate a responder recommendation before requesting AI advice.');
-        abort_unless(filled(config('services.openai.key')), 503, 'Set OPENAI_API_KEY before requesting AI advice.');
+        abort_unless(filled(config('aman.agent.url')) || filled(config('services.openai.key')), 503, 'Configure the AI agent before requesting advice.');
         $decision = $incident->decision ?? [];
         $decision['adviceStatus'] = 'pending';
         unset($decision['advice'], $decision['adviceError']);

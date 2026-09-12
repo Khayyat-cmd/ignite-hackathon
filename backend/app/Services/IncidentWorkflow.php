@@ -17,7 +17,7 @@ final class IncidentWorkflow
 {
     public function __construct(private EventJournal $journal) {}
 
-    public function recommend(Incident $incident, int $actorId): Incident
+    public function recommend(Incident $incident, ?int $actorId): Incident
     {
         $incident = DB::transaction(function () use ($incident, $actorId) {
             $incident = Incident::where('organization_id', $incident->organization_id)->whereKey($incident->id)->lockForUpdate()->firstOrFail();
@@ -48,21 +48,57 @@ final class IncidentWorkflow
                 ];
             }
             usort($candidates, fn ($a, $b) => ($a['distanceMeters'] <=> $b['distanceMeters']) ?: strcmp($a['responderId'], $b['responderId']));
-            $selected = $candidates[0] ?? null;
+            $fallback = $candidates[0] ?? null;
             $previousAdvice = data_get($incident->decision, 'advice');
             $previousAdviceStatus = data_get($incident->decision, 'adviceStatus');
+            $previousEscalation = data_get($incident->decision, 'escalation');
+            $escalationHistory = data_get($incident->decision, 'escalationHistory', []);
             $previousCandidateIds = collect(data_get($incident->decision, 'candidates', []))->pluck('responderId')->values()->all();
             $candidateIds = collect($candidates)->pluck('responderId')->values()->all();
             $sameCandidates = $previousCandidateIds === $candidateIds;
-            $adviceStatus = $selected && (filled(config('aman.agent.url')) || filled(config('services.openai.key')))
+            $agentEnabled = filled(config('aman.agent.url'));
+            $adviceStatus = $fallback && $agentEnabled
                 ? ($sameCandidates && in_array($previousAdviceStatus, ['pending', 'ready'], true) ? $previousAdviceStatus : 'pending')
                 : 'disabled';
-            $decision = ['method' => 'deterministic_simulated_distance', 'source' => $incident->source, 'candidates' => $candidates, 'excluded' => $excluded, 'requiresRouteReview' => true, 'reason' => $selected ? 'nearest_eligible_reachable_responder' : 'no_eligible_responder', 'adviceStatus' => $adviceStatus];
+            $selected = null;
+            $recommendationSource = $agentEnabled ? 'pending_agent' : 'none';
+            if (! $agentEnabled && $fallback) {
+                $selected = $fallback;
+                $recommendationSource = 'deterministic_fallback';
+            } elseif ($sameCandidates && $adviceStatus === 'ready') {
+                $recommendedId = data_get($previousAdvice, 'recommendedResponderId');
+                if (data_get($previousAdvice, 'agentStatus') === 'completed') {
+                    $selected = collect($candidates)->firstWhere('responderId', $recommendedId);
+                    $recommendationSource = $selected ? 'agent' : 'agent_no_recommendation';
+                } else {
+                    $selected = $fallback;
+                    $recommendationSource = $selected ? 'deterministic_fallback' : 'none';
+                }
+            }
+            $decision = [
+                'method' => 'agent_with_deterministic_fallback',
+                'source' => $incident->source,
+                'candidates' => $candidates,
+                'excluded' => $excluded,
+                'fallbackResponderId' => $fallback['responderId'] ?? null,
+                'recommendationSource' => $recommendationSource,
+                'requiresRouteReview' => true,
+                'reason' => $selected ? ($recommendationSource === 'agent' ? 'agent_recommended_responder' : 'nearest_eligible_reachable_responder') : ($adviceStatus === 'pending' ? 'awaiting_agent_recommendation' : 'no_eligible_responder'),
+                'adviceStatus' => $adviceStatus,
+            ];
+            if ($previousEscalation) {
+                $decision['escalation'] = $previousEscalation;
+            }
+            if ($escalationHistory) {
+                $decision['escalationHistory'] = $escalationHistory;
+            }
             if ($previousAdvice && $sameCandidates && $adviceStatus === 'ready') {
                 $decision['advice'] = $previousAdvice;
             }
+            $selectionChanged = $incident->responder_id !== ($selected['responderId'] ?? null)
+                || $incident->status !== ($selected ? IncidentStatus::AwaitingApproval : IncidentStatus::Detected);
             $incident->update(['responder_id' => $selected['responderId'] ?? null, 'decision' => $decision, 'status' => $selected ? IncidentStatus::AwaitingApproval : IncidentStatus::Detected]);
-            if ($selected) {
+            if ($selected && $selectionChanged) {
                 $this->journal->append(EventType::ResponderSelected, ['responderId' => $selected['responderId'], 'decision' => $decision], $zone->id, $incident->id, $actorId);
             }
 
@@ -102,6 +138,7 @@ final class IncidentWorkflow
                 'advisorAccepted' => data_get($decision, 'advice.recommendedResponderId') === $responder->id,
                 'reviewedAt' => now()->toISOString(),
             ];
+            unset($decision['escalation']);
             $incident->update(['responder_id' => $responder->id, 'assigned_responder_id' => $responder->id, 'decision' => $decision, 'status' => IncidentStatus::Dispatched, 'approved_at' => now()]);
             $this->journal->append(EventType::ResponseStarted, ['responderId' => $responder->id, 'source' => $incident->source, 'deliveryStatus' => 'awaiting_acknowledgement', 'qodStatus' => 'not_requested'], $incident->zone_id, $incident->id, $actorId);
 

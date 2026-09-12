@@ -60,7 +60,10 @@ class AgentIncidentAdviceTest extends TestCase
      */
     private function completedRun(array $payload, array $overrides = []): array
     {
-        $responderId = $payload['eligibleCandidates'][0]['responderId'];
+        // Deliberately choose a non-first candidate when available. This proves
+        // the agent, rather than Laravel's distance ordering, owns the normal
+        // recommendation.
+        $responderId = ($payload['eligibleCandidates'][1] ?? $payload['eligibleCandidates'][0])['responderId'];
 
         return [
             'requestId' => $payload['requestId'],
@@ -131,6 +134,8 @@ class AgentIncidentAdviceTest extends TestCase
         $this->assertSame('openai-agents-python', $advice['agentRuntime']);
         $this->assertSame('simulated_fixture', $advice['evidenceMode']);
         $this->assertSame($incident->responder_id, $advice['recommendedResponderId']);
+        $this->assertNotSame(data_get($incident->decision, 'fallbackResponderId'), $incident->responder_id);
+        $this->assertSame('agent', data_get($incident->decision, 'recommendationSource'));
         $this->assertCount(2, $advice['toolTrace']);
         $this->assertSame('device_reachability', $advice['toolTrace'][0]['tool']);
         // High congestion escalates a critical zone's urgency for the operator.
@@ -148,6 +153,7 @@ class AgentIncidentAdviceTest extends TestCase
             return $request->hasHeader('Authorization', 'Bearer agent-service-token')
                 && count($payload['eligibleCandidates']) > 0
                 && $payload['zone']['criticalThreshold'] > $payload['zone']['warningThreshold']
+                && ! array_key_exists('deterministicRecommendation', $payload)
                 && ! array_key_exists('fixtureEvidence', $payload);
         });
     }
@@ -168,6 +174,8 @@ class AgentIncidentAdviceTest extends TestCase
         $this->assertSame('degraded', $advice['agentStatus']);
         $this->assertNull($advice['recommendedResponderId']);
         $this->assertNotNull($incident->responder_id);
+        $this->assertSame(data_get($incident->decision, 'fallbackResponderId'), $incident->responder_id);
+        $this->assertSame('deterministic_fallback', data_get($incident->decision, 'recommendationSource'));
         $this->assertSame('awaiting_approval', $incident->status->value);
     }
 
@@ -196,6 +204,8 @@ class AgentIncidentAdviceTest extends TestCase
         $incident->refresh();
         $this->assertSame('failed', data_get($incident->decision, 'adviceStatus'));
         $this->assertNotNull($incident->responder_id);
+        $this->assertSame(data_get($incident->decision, 'fallbackResponderId'), $incident->responder_id);
+        $this->assertSame('deterministic_fallback', data_get($incident->decision, 'recommendationSource'));
         $this->assertSame('awaiting_approval', $incident->status->value);
     }
 

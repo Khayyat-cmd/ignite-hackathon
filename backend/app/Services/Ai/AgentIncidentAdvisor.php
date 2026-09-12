@@ -69,13 +69,6 @@ class AgentIncidentAdvisor implements IncidentAdvisor
             ],
             'eligibleCandidates' => $eligible->all(),
         ];
-        if ($incident->responder_id !== null && $eligible->contains('responderId', $incident->responder_id)) {
-            $payload['deterministicRecommendation'] = [
-                'responderId' => $incident->responder_id,
-                'reason' => (string) ($decision['reason'] ?? 'nearest_eligible_reachable_responder'),
-            ];
-        }
-
         $response = Http::baseUrl((string) config('aman.agent.url'))
             ->withToken((string) config('aman.agent.token'))
             ->acceptJson()
