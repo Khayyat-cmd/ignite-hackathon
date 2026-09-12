@@ -31,6 +31,20 @@ mysql -e "CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB
 mysql -e "ALTER USER '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASSWORD}';"
 mysql -e "GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'localhost'; FLUSH PRIVILEGES;"
 
+log "Binary log retention"
+# The demo's five-second tick writes to MySQL continuously, and with the 30-day
+# default retention the server-wide binary logs grew to 134 GB and filled the disk,
+# which took every project on this VPS down. Nothing here replicates or does
+# point-in-time recovery, so a day of logs is enough. MINIMAL row images keep an
+# UPDATE from logging the columns it did not change.
+cat > /etc/mysql/mysql.conf.d/zz-aman-binlog.cnf <<'CNF'
+[mysqld]
+binlog_expire_logs_seconds = 86400
+binlog_row_image = MINIMAL
+CNF
+mysql -e "SET GLOBAL binlog_expire_logs_seconds = 86400; SET GLOBAL binlog_row_image = 'MINIMAL'; PURGE BINARY LOGS BEFORE DATE_SUB(NOW(), INTERVAL 1 DAY);"
+df -h / | tail -1
+
 log "CAMARA agent service"
 # Its own virtualenv so the agent's Python dependencies never touch the system
 # interpreter the other projects on this VPS share. Created once and reused, so

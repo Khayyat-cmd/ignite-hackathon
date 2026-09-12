@@ -11,6 +11,7 @@ use App\Models\Zone;
 use App\Services\Camara\NokiaNetwork;
 use App\Services\Simulation\EventSimulation;
 use App\Services\Simulation\LocationProvider;
+use App\Services\Simulation\PositionStore;
 use App\Services\Simulation\ZoneLocator;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -226,11 +227,12 @@ class EventSimulationTest extends TestCase
         $this->assertCount(4, $run->definition['zones']);
         $this->assertGreaterThan(500, $run->snapshot['zoneCounts'][$south->id]);
         $this->assertLessThan(700, $run->snapshot['zoneCounts'][$south->id]);
-        $initial = collect($run->snapshot['positions'])->firstWhere('zoneId', $south->id);
+        $positions = app(PositionStore::class);
+        $initial = collect($positions->all($run->id))->firstWhere('zoneId', $south->id);
         $this->postJson("/api/v1/simulations/{$run->id}/control", ['action' => 'start'])->assertOk();
         $this->tick($run, 13);
         $snapshot = $run->fresh()->snapshot;
-        $moved = collect($snapshot['positions'])->firstWhere('id', $initial['id']);
+        $moved = collect($positions->all($run->id))->firstWhere('id', $initial['id']);
         $this->assertSame($south->id, $moved['zoneId']);
         $this->assertSame($initial['x'], $moved['x']);
         $this->assertGreaterThan(500, $snapshot['zoneCounts'][$south->id]);
@@ -243,7 +245,7 @@ class EventSimulationTest extends TestCase
     {
         $run = $this->createRun(10000);
         $snapshot = $run->snapshot;
-        $this->assertCount(10000, array_unique(array_column($snapshot['positions'], 'id')));
+        $this->assertCount(10000, array_unique(array_column(app(PositionStore::class)->all($run->id), 'id')));
         $this->assertSame(10000, array_sum($snapshot['quality']));
         $this->assertSame(0, $snapshot['externalRequests']);
     }

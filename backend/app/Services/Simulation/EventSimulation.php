@@ -27,6 +27,7 @@ final class EventSimulation
         private IncidentWorkflow $workflow,
         private EventJournal $journal,
         private NokiaReachability $reachability,
+        private PositionStore $positionStore,
     ) {}
 
     public function assertEnabled(): void
@@ -106,6 +107,8 @@ final class EventSimulation
     private function stop(SimulationRun $run, string $reason): void
     {
         $run->update(['status' => 'stopped']);
+        // A stopped run is never polled for positions again, so its file goes with it.
+        $this->positionStore->forget($run->id);
         VenueEvent::whereKey($run->venue_event_id)->update(['status' => 'completed', 'ends_at' => now()]);
         $incidents = Incident::where('venue_event_id', $run->venue_event_id)->whereNotNull('active_zone_id')->get();
         foreach ($incidents as $incident) {
@@ -238,9 +241,11 @@ final class EventSimulation
             : (isset($interventions['east'])
                 ? ($run->elapsed_seconds >= $interventions['east'] + $definition['recovery']['seconds'] ? 'east_recovered' : 'east_response')
                 : ($run->elapsed_seconds >= $definition['bottleneckAtSeconds'] ? 'east_bottleneck' : 'arrivals'));
+        // Positions go to disk, not into the run row. See PositionStore for why.
+        $this->positionStore->put($run->id, $positions);
         $run->snapshot = ['source' => 'simulated_network', 'observedAt' => $now->toISOString(),
             'phase' => $phase, 'quality' => $quality, 'zoneCounts' => $counts,
-            'positions' => $positions, 'providerExamples' => $examples,
+            'providerExamples' => $examples,
             'locationRequestsThisTick' => $run->attendee_count, 'reachabilityProvider' => 'nokia_sandbox'];
         $run->save();
         $this->journal->append(EventType::SimulationUpdated, ['runId' => $run->id, 'venueEventId' => $run->venue_event_id,
