@@ -23,12 +23,29 @@ echo "socket: ${PHP_SOCK}"
 log "Directories"
 mkdir -p "${ROOT}/web/downloads"
 mkdir -p "${ROOT}/backend"
+mkdir -p "${ROOT}/agent"
 
 log "Database"
 mysql -e "CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 mysql -e "CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASSWORD}';"
 mysql -e "ALTER USER '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASSWORD}';"
 mysql -e "GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'localhost'; FLUSH PRIVILEGES;"
+
+log "CAMARA agent service"
+# Its own virtualenv so the agent's Python dependencies never touch the system
+# interpreter the other projects on this VPS share. Created once and reused, so
+# a redeploy only reconciles requirements.
+AGENT_PY="${ROOT}/agent/.venv/bin/python"
+if [ ! -x "${AGENT_PY}" ]; then
+  python3 -m venv "${ROOT}/agent/.venv" || {
+    echo "python3 -m venv failed. Install the venv module first: apt-get install -y python3-venv" >&2
+    exit 1
+  }
+  "${AGENT_PY}" -m pip install -q --upgrade pip
+fi
+python3 --version
+"${AGENT_PY}" -m pip install -q -r "${ROOT}/agent/requirements.txt"
+"${AGENT_PY}" -m compileall -q "${ROOT}/agent"
 
 log "Composer dependencies"
 cd "${ROOT}/backend"
@@ -46,6 +63,11 @@ chown -R www-data:www-data "${ROOT}/backend/storage" "${ROOT}/backend/bootstrap/
 chmod -R ug+rw "${ROOT}/backend/storage" "${ROOT}/backend/bootstrap/cache"
 chown www-data:www-data "${ROOT}/backend/.env"
 chmod 640 "${ROOT}/backend/.env"
+chown -R www-data:www-data "${ROOT}/agent"
+if [ -f "${ROOT}/agent/agent.env" ]; then
+  chown root:www-data "${ROOT}/agent/agent.env"
+  chmod 640 "${ROOT}/agent/agent.env"
+fi
 if [ -f "${ROOT}/backend/storage/app/private/firebase-service-account.json" ]; then
   chown www-data:www-data "${ROOT}/backend/storage/app/private/firebase-service-account.json"
   chmod 600 "${ROOT}/backend/storage/app/private/firebase-service-account.json"
@@ -68,10 +90,23 @@ fi
 nginx -t && systemctl reload nginx
 
 log "Background services"
-cp "${ROOT}/deploy/systemd/aman-queue.service" "${ROOT}/deploy/systemd/aman-schedule.service" /etc/systemd/system/
+cp "${ROOT}/deploy/systemd/aman-queue.service" "${ROOT}/deploy/systemd/aman-schedule.service" \
+   "${ROOT}/deploy/systemd/aman-agent.service" /etc/systemd/system/
 systemctl daemon-reload
-systemctl enable --now aman-queue.service aman-schedule.service
-systemctl restart aman-queue.service aman-schedule.service
-systemctl --no-pager --lines=3 status aman-queue.service aman-schedule.service || true
+systemctl enable --now aman-agent.service aman-queue.service aman-schedule.service
+systemctl restart aman-agent.service aman-queue.service aman-schedule.service
+systemctl --no-pager --lines=3 status aman-agent.service aman-queue.service aman-schedule.service || true
+
+log "Agent health"
+# The queue worker cannot produce advice until the agent answers, so a failure
+# here is reported now rather than as a silent 'advice unavailable' in the demo.
+for attempt in 1 2 3 4 5 6 7 8 9 10; do
+  if curl -fsS --max-time 3 http://127.0.0.1:8091/health; then
+    echo
+    break
+  fi
+  [ "${attempt}" = "10" ] && echo "WARNING: the agent service did not answer /health" >&2
+  sleep 2
+done
 
 log "Done: https://${DOMAIN}"

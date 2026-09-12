@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Services\Ai\AgentIncidentAdvisor;
 use App\Services\Ai\IncidentAdvisor;
 use App\Services\Ai\OpenAiIncidentAdvisor;
 use App\Services\Push\FirebaseCloudMessaging;
@@ -19,7 +20,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->bind(IncidentAdvisor::class, OpenAiIncidentAdvisor::class);
+        // The CAMARA orchestration agent is the advisor whenever its service is
+        // configured. The single-model advisor stays the fallback for a local
+        // machine that is not running the Python service.
+        $this->app->bind(IncidentAdvisor::class, fn () => filled(config('aman.agent.url'))
+            ? new AgentIncidentAdvisor
+            : $this->app->make(OpenAiIncidentAdvisor::class));
         $this->app->bind(PushNotifier::class, FirebaseCloudMessaging::class);
     }
 

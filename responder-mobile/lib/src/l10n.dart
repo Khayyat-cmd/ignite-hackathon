@@ -64,6 +64,11 @@ const _en = <String, String>{
       'Location verified. Confirm when you are ready to begin.',
   'mission.locationProceed':
       'Proceed to the assigned area. Arrival will be verified automatically.',
+  'brief.label': 'CONTROL ROOM BRIEF',
+  'brief.critical': 'CRITICAL',
+  'brief.criticalZone':
+      'Crowd density in this zone is above the critical threshold.',
+  'brief.congested': 'Mobile data is congested at this zone. Use radio if a message does not go through.',
 
   'action.headingThere': 'HEADING THERE',
   'action.onScene': 'ON SCENE',
@@ -159,6 +164,10 @@ const _ar = <String, String>{
       'تم التحقق من الموقع. أكّد عندما تكون جاهزًا للبدء.',
   'mission.locationProceed':
       'توجّه إلى المنطقة المكلَّف بها. سيتم التحقق من الوصول تلقائيًا.',
+  'brief.label': 'موجز غرفة التحكّم',
+  'brief.critical': 'حرج',
+  'brief.criticalZone': 'كثافة الحشد في هذه المنطقة تجاوزت الحدّ الحرج.',
+  'brief.congested': 'شبكة البيانات مزدحمة في هذه المنطقة. استخدم الراديو إذا لم تُسلَّم الرسالة.',
 
   'action.headingThere': 'في الطريق',
   'action.onScene': 'في الموقع',

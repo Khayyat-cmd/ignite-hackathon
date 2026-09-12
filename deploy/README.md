@@ -2,8 +2,8 @@
 
 Target: `aman.baraaelbaba.com` on `62.171.175.172`, alongside the other projects
 already hosted there. Everything AMAN owns lives in `/var/www/aman`, the `aman`
-MySQL database, the `aman-queue` / `aman-schedule` systemd units, and one nginx
-vhost. Nothing else on the box is touched.
+MySQL database, the `aman-agent` / `aman-queue` / `aman-schedule` systemd units,
+and one nginx vhost. Nothing else on the box is touched.
 
 ## What gets served
 
@@ -16,6 +16,14 @@ vhost. Nothing else on the box is touched.
 The console is built with `VITE_API_URL=https://aman.baraaelbaba.com/api/v1/demo`
 and the APK with the same URL plus `ALLOW_SERVER_CONFIGURATION=false`, so nobody
 has to type a server address on the day.
+
+Two things are not public. The CAMARA orchestration agent (`ml/agent`) runs as
+`aman-agent.service` on `127.0.0.1:8091`, and Laravel's private tool gateway is
+served to it by a loopback-only nginx listener on `127.0.0.1:8127`; the public
+vhost denies `/api/internal/`. `release.sh` generates the two bearer tokens on
+the server the first time and reuses them after that, so neither is ever typed
+or committed. The agent's `OPENAI_API_KEY` lives only in
+`/var/www/aman/agent/agent.env` (root-owned, `0640`, group `www-data`).
 
 ## Deploy
 

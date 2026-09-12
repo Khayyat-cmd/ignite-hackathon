@@ -1044,9 +1044,95 @@ class MissionCard extends StatelessWidget {
               ),
             ],
           ),
+          if (mission.brief?.hasSomethingToSay ?? false) ...[
+            const SizedBox(height: 20),
+            MissionBriefBlock(brief: mission.brief!),
+          ],
           if (mission.onScene) ...[
             const SizedBox(height: 22),
             SuccessStrip(text: s.t('mission.onSceneStrip')),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// The operator's approved brief, as a responder needs it while moving: how
+/// urgent the zone is, and the network warning that changes how they should try
+/// to reach the control room. The agent's own prose stays in the control room.
+class MissionBriefBlock extends StatelessWidget {
+  const MissionBriefBlock({super.key, required this.brief});
+  final MissionBrief brief;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = L10n.of(context);
+    const amber = Color(0xFFEBC56E);
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: ink,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: line),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                s.t('brief.label'),
+                style: TextStyle(
+                  color: muted,
+                  fontSize: 10,
+                  letterSpacing: s.isRtl ? 0 : 1.4,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const Spacer(),
+              if (brief.isCritical)
+                Text(
+                  s.t('brief.critical'),
+                  style: TextStyle(
+                    color: alarmEdge,
+                    fontSize: 10,
+                    letterSpacing: s.isRtl ? 0 : 1.2,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+            ],
+          ),
+          if (brief.isCritical) ...[
+            const SizedBox(height: 9),
+            Text(
+              s.t('brief.criticalZone'),
+              style: const TextStyle(height: 1.45),
+            ),
+          ],
+          if (brief.networkCongested) ...[
+            const SizedBox(height: 12),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.signal_cellular_alt_rounded,
+                  color: amber,
+                  size: 18,
+                ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Text(
+                    s.t('brief.congested'),
+                    style: const TextStyle(
+                      color: amber,
+                      fontSize: 13,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ],
         ],
       ),
@@ -1202,7 +1288,10 @@ class _NewAssignmentScreenState extends State<NewAssignmentScreen>
           backgroundColor: bright ? alarmBright : alarmDeep,
           body: Container(
             decoration: BoxDecoration(
-              border: Border.all(color: bright ? Colors.white : alarmEdge, width: 6),
+              border: Border.all(
+                color: bright ? Colors.white : alarmEdge,
+                width: 6,
+              ),
             ),
             child: child,
           ),
@@ -1217,7 +1306,10 @@ class _NewAssignmentScreenState extends State<NewAssignmentScreen>
               Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(4),
@@ -1302,7 +1394,9 @@ class _NewAssignmentScreenState extends State<NewAssignmentScreen>
               ),
               const SizedBox(height: 8),
               TextButton(
-                style: TextButton.styleFrom(foregroundColor: const Color(0xFFFFD3CD)),
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFFFFD3CD),
+                ),
                 onPressed: _busy ? null : () => Navigator.of(context).pop(),
                 child: Text(s.t('action.viewDetails')),
               ),

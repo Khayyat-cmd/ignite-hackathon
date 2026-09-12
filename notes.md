@@ -55,6 +55,26 @@ Laravel validates the response, rejects unknown responder IDs, stores the prompt
 
 Use a provider-neutral interface and configure the provider and model through server environment variables. Start with a fast model and evaluate it against a fixed set of incident scenarios. `gpt-5.6-luna` is the initial OpenAI candidate for latency and cost; Claude Sonnet is a reasonable quality comparison. Do not hard-code either provider into the incident workflow.
 
+### The advisor is an agent, not a single call
+
+The advisor that runs today is the CAMARA orchestration agent in `ml/agent`, a
+separate Python process built on the OpenAI Agents SDK. It decides which CAMARA
+APIs to consult — Device Reachability, Location Verification, Congestion
+Insights — and returns the calls it made alongside its recommendation.
+
+Only Laravel talks to it, and it only talks back to Laravel: its three tools are
+one private, token-authenticated, loopback-only gateway,
+`POST /api/internal/agent/camara`, which is also the only thing that touches
+provider credentials, phone numbers, or raw coordinates. It has no dispatch
+tool. A recommendation is rejected in code unless the tool trace supports it: a
+reachable device, a passing location check, and congestion evidence for a
+critical incident. A failure returns a `degraded` result with no recommendation,
+and the deterministic ranking stays the operational answer.
+
+Provenance is declared per operation and never upgraded, so the console can
+show an operator which readings came off the live network and which came from
+the venue simulation. Today only Device Reachability is live.
+
 ## Client guidance
 
 ### Electron admin app
@@ -97,6 +117,7 @@ Unity loads an initial snapshot from Laravel and consumes the same ordered event
 - Validate and audit every response; add operator feedback and deterministic fallback.
 - The prototype defaults to `gpt-5.6-luna` with strict structured output, low reasoning effort, server-side candidate validation, and deterministic fallback.
 - Evaluate latency and operator usefulness against rehearsal scenarios before selecting the production model.
+- The single model call has been replaced by the CAMARA orchestration agent, and the console renders its tool trace. Remaining: serve Location Verification and Congestion Insights from Nokia Network-as-Code rather than the venue simulation, and carry the operator's language into the run.
 
 ### Phase 5 — Unity and full rehearsal
 

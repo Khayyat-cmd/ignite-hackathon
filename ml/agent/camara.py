@@ -111,7 +111,10 @@ class BackendCamaraClient(CamaraClient):
                 pass
             else:
                 raise CamaraToolError("CAMARA gateway returned evidence for the wrong subject")
-        if evidence.source != "live_camara":
-            raise CamaraToolError("backend mode requires live_camara evidence provenance")
+        # Provenance is whatever the gateway declares per operation, and it is
+        # never upgraded here. AMAN's venue runs mixed: Device Reachability is a
+        # live Nokia Network-as-Code call, while location verification and
+        # congestion come from the venue simulation. A run that touches any
+        # simulated source is reported as simulated_fixture overall.
         return evidence
 

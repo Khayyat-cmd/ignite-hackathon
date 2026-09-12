@@ -1,0 +1,22 @@
+[Unit]
+Description=AMAN CAMARA orchestration agent (OpenAI Agents SDK)
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/aman/agent
+# Secrets come from the environment file provision.sh writes, never from the
+# repository. It is root-owned and readable only by www-data.
+EnvironmentFile=/var/www/aman/agent/agent.env
+ExecStart=/var/www/aman/agent/.venv/bin/python service.py
+Restart=always
+RestartSec=3
+# Loopback only: Laravel is the single caller.
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

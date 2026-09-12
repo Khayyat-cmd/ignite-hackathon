@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AgentCamaraController;
 use App\Http\Controllers\DevicePushTokenController;
 use App\Http\Controllers\IncidentController;
 use App\Http\Controllers\MissionCommunicationController;
@@ -28,3 +29,7 @@ Route::prefix('v1/demo')->middleware('throttle:api')->group(function () {
     Route::get('missions/{incident}/messages', [MissionCommunicationController::class, 'index']);
     Route::post('missions/{incident}/messages', [MissionCommunicationController::class, 'store']);
 });
+
+// Private server-to-server tool gateway for the CAMARA orchestration agent.
+// Bearer-token authenticated inside the controller; never called by a client.
+Route::post('internal/agent/camara', AgentCamaraController::class)->middleware('throttle:600,1');

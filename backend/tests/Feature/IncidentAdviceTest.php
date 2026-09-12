@@ -27,6 +27,9 @@ class IncidentAdviceTest extends TestCase
             'services.openai.key' => 'test-openai-key',
             'services.openai.base_url' => 'https://api.openai.test/v1',
             'services.openai.model' => 'gpt-5.6-luna',
+            // This file covers the single-call advisor, so the orchestration
+            // agent stays unbound whatever the developer's .env says.
+            'aman.agent.url' => null,
         ]);
         $this->travelTo(CarbonImmutable::parse('2026-09-05T12:00:00Z'));
         Http::preventStrayRequests();

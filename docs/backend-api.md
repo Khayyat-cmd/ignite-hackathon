@@ -28,7 +28,54 @@ The current demo creates its local operator and responder identities automatical
 
 These routes support the current Electron renderer, Flutter prototype, and Unity snapshot integration. They are not the role-scoped production API.
 
-When `OPENAI_API_KEY` is set, a deterministic recommendation queues an incident brief automatically. The response is stored under `incident.decision.advice`; `adviceStatus` is `pending`, `ready`, `failed`, or `disabled`. The model may choose only from `decision.candidates`, and dispatch still requires the `/approve` request with `routeReviewed: true`.
+## Private agent gateway
+
+| Method and path | Purpose |
+| --- | --- |
+| `POST /api/internal/agent/camara` | One normalized CAMARA evidence record for the orchestration agent. |
+
+This is the only route outside `/api/v1/demo` and the only path from the agent to
+network evidence. It is not a client route: it requires
+`Authorization: Bearer $AMAN_CAMARA_GATEWAY_TOKEN`, returns 503 when that token
+is unset, and the public nginx vhost denies `/api/internal/`. In production the
+agent reaches it over a loopback-only listener on `127.0.0.1:8127`.
+
+The body is `{requestId, incidentId, zoneId, operation, responderId?}` where
+`operation` is `device_reachability`, `location_verification`, or
+`congestion_insights`. A `responderId` the backend did not rank as eligible for
+that incident is refused with 422, so a hallucinated ID cannot reach a provider.
+
+The reply is `{"evidence": {…}}` in the agent's `CamaraEvidence` shape, carrying
+per-operation provenance that is never upgraded:
+
+| Operation | Provider | `source` |
+| --- | --- | --- |
+| `device_reachability` | Nokia Network-as-Code | `live_camara` |
+| `location_verification` | AMAN venue simulation | `simulated_fixture` |
+| `congestion_insights` | AMAN venue simulation | `simulated_fixture` |
+
+Phone numbers, provider credentials, and raw coordinates stay inside Laravel.
+
+## Incident advice
+
+A deterministic recommendation queues an incident brief automatically whenever
+an advisor is configured — `AMAN_AGENT_URL` for the orchestration agent, or
+`OPENAI_API_KEY` for the single-call fallback. The result is stored under
+`incident.decision.advice`; `adviceStatus` is `pending`, `ready`, `failed`, or
+`disabled`. The advisor may choose only from `decision.candidates`, and dispatch
+still requires the `/approve` request with `routeReviewed: true`.
+
+Advice from the agent adds `agentStatus` (`completed` or `degraded`),
+`agentRuntime`, `agentVersion`, `evidenceMode` (`live_camara`,
+`simulated_fixture`, or `none`), `requiresHumanApproval`, and `toolTrace` — the
+CAMARA calls the agent chose, in order, each with its reason, provider, API,
+provenance, and sanitized result. A `degraded` run recommends nobody and leaves
+the deterministic ranking as the operational answer.
+
+`GET /missions` carries a `brief` per mission: `{urgency, networkCongested}`,
+the field-facing slice of that advice. The agent's prose is deliberately not
+forwarded — it is written for the operator deciding a dispatch, not for the
+responder already assigned.
 
 ## Planned authenticated contracts
 

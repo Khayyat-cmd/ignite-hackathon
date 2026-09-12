@@ -89,6 +89,50 @@ describe('Command center', () => {
     expect(html).toContain('Review before dispatch');
     expect(html).not.toContain('internal-model-name');
   });
+  it('shows the CAMARA calls the agent made and which were live', () => {
+    const advice = {
+      summary: 'The nearest marshal is data reachable and inside the zone.', urgency: 'critical', confidence: 'medium',
+      proposedAction: 'Dispatch the nearest marshal after review.', recommendedResponderId: 'r1',
+      evidence: ['Device Reachability confirms mobile data.'], uncertainties: [],
+      model: 'internal-model-name', agentRuntime: 'openai-agents-python', agentStatus: 'completed',
+      evidenceMode: 'simulated_fixture', agentVersion: '2.0.0', generatedAt: '2026-09-12T12:00:00Z',
+      toolTrace: [
+        { sequence: 1, tool: 'device_reachability', reason: 'Confirm the marshal can be reached.', responderId: 'r1', provider: 'nokia_network_as_code', api: 'device-status/device-reachability-status/v1', source: 'live_camara', status: 'ok', checkedAt: '2026-09-12T12:00:00Z', result: { dataReachable: true } },
+        { sequence: 2, tool: 'congestion_insights', reason: 'The zone is critical, so check comms quality.', responderId: null, provider: 'aman_venue_simulation', api: 'network-insights/congestion-insights/v0', source: 'simulated_fixture', status: 'ok', checkedAt: '2026-09-12T12:00:00Z', result: { congestionLevel: 'high' } },
+      ],
+    };
+    const incident = { id: 'i1', zone_id: 'east', active_zone_id: 'east', status: 'awaiting_approval', responder_id: 'r1', decision: { candidates: [{ responderId: 'r1', distanceMeters: 42 }], adviceStatus: 'ready', advice } };
+    const html = renderToStaticMarkup(<OperatorPanel data={{ ...base, responders: [{ id: 'r1', name: 'Concourse Marshal', available: true, signals: {} }], incidents: [incident] }} />);
+    expect(html).toContain('2 network checks');
+    expect(html).toContain('Device Reachability Status');
+    expect(html).toContain('Congestion Insights');
+    expect(html).toContain('Mobile data confirmed');
+    expect(html).toContain('Congestion: HIGH');
+    // Mixed provenance must never read as fully live.
+    expect(html).toContain('1 of 2 live');
+    expect(html).not.toContain('&gt;live network&lt;');
+    // The agent runtime is named for the operator; the internal model name is
+    // still not exposed, as elsewhere in the brief.
+    expect(html).toContain('openai-agents-python v2.0.0');
+    expect(html).not.toContain('internal-model-name');
+  });
+
+  it('flags a degraded agent run instead of implying a recommendation', () => {
+    const advice = {
+      summary: 'No AI recommendation was issued because trusted evidence was incomplete.',
+      urgency: 'critical', confidence: 'low', proposedAction: 'Choose a responder manually.',
+      recommendedResponderId: null, evidence: ['CAMARA evidence was unavailable.'], uncertainties: [],
+      agentStatus: 'degraded', evidenceMode: 'none', toolTrace: [], generatedAt: '2026-09-12T12:00:00Z',
+    };
+    const incident = { id: 'i1', zone_id: 'east', active_zone_id: 'east', status: 'awaiting_approval', responder_id: 'r1', decision: { candidates: [{ responderId: 'r1', distanceMeters: 42 }], adviceStatus: 'ready', advice } };
+    const html = renderToStaticMarkup(<OperatorPanel data={{ ...base, responders: [{ id: 'r1', name: 'Concourse Marshal', available: true, signals: {} }], incidents: [incident] }} />);
+    expect(html).toContain('No AI recommendation');
+    expect(html).toContain('brief-degraded');
+    expect(html).not.toContain('network checks');
+    // The operator still gets the deterministic option to approve.
+    expect(html).toContain('Dispatch selected responder');
+  });
+
   it('overlays located responders and awaiting incidents on the map', () => {
     const responder = { id: 'r1', name: 'Concourse Marshal', role: 'crowd_marshal', available: true, signals: { location: { latitude: 33.9005, longitude: 35.5005, accuracyMeters: 1 }, reachability: { dataReachable: true } } };
     const incident = { id: 'i1', zone_id: 'east', active_zone_id: 'east', status: 'awaiting_approval', responder_id: 'r1', decision: { candidates: [{ responderId: 'r1', distanceMeters: 42 }] } };
