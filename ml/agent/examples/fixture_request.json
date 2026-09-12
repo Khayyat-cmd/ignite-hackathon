@@ -1,0 +1,88 @@
+{
+  "requestId": "demo-incident-42-v1",
+  "incident": {
+    "id": "incident-42",
+    "status": "awaiting_advice",
+    "severity": "critical",
+    "source": "unity_simulation"
+  },
+  "zone": {
+    "id": "zone-a",
+    "name": "North Concourse",
+    "riskLevel": "critical",
+    "density": 5.8,
+    "warningThreshold": 3.5,
+    "criticalThreshold": 5.0,
+    "observedAt": "2026-09-12T12:00:00Z"
+  },
+  "eligibleCandidates": [
+    {
+      "responderId": "responder-7",
+      "name": "R7",
+      "role": "crowd_safety",
+      "distanceMeters": 95,
+      "accuracyMeters": 18
+    },
+    {
+      "responderId": "responder-12",
+      "name": "R12",
+      "role": "medical",
+      "distanceMeters": 130,
+      "accuracyMeters": 22
+    }
+  ],
+  "deterministicRecommendation": {
+    "responderId": "responder-7",
+    "reason": "Nearest eligible crowd-safety responder"
+  },
+  "fixtureEvidence": [
+    {
+      "operation": "device_reachability",
+      "responderId": "responder-7",
+      "provider": "Nokia Network as Code",
+      "api": "CAMARA Device Reachability Status",
+      "source": "simulated_fixture",
+      "status": "ok",
+      "observedAt": "2026-09-12T12:00:01Z",
+      "checkedAt": "2026-09-12T12:00:02Z",
+      "dataReachable": true
+    },
+    {
+      "operation": "device_reachability",
+      "responderId": "responder-12",
+      "provider": "Nokia Network as Code",
+      "api": "CAMARA Device Reachability Status",
+      "source": "simulated_fixture",
+      "status": "ok",
+      "observedAt": "2026-09-12T12:00:01Z",
+      "checkedAt": "2026-09-12T12:00:02Z",
+      "dataReachable": false
+    },
+    {
+      "operation": "location_verification",
+      "responderId": "responder-7",
+      "provider": "Nokia Network as Code",
+      "api": "CAMARA Location Verification",
+      "source": "simulated_fixture",
+      "status": "ok",
+      "observedAt": "2026-09-12T12:00:01Z",
+      "checkedAt": "2026-09-12T12:00:02Z",
+      "verificationResult": "TRUE",
+      "accuracyMeters": 18,
+      "confidence": 0.96
+    },
+    {
+      "operation": "congestion_insights",
+      "provider": "Nokia Network as Code",
+      "api": "CAMARA Congestion Insights",
+      "source": "simulated_fixture",
+      "status": "ok",
+      "observedAt": "2026-09-12T12:00:01Z",
+      "checkedAt": "2026-09-12T12:00:02Z",
+      "congestionLevel": "medium",
+      "latencyMs": 84,
+      "packetLossPct": 1.4,
+      "confidence": 0.91
+    }
+  ]
+}
