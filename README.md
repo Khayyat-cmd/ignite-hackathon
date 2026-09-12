@@ -2,7 +2,11 @@
 
 AMAN is a crowd-risk monitoring prototype for venues and public events. A Laravel backend receives network information and simulated crowd readings, evaluates zone risk, coordinates responder incidents, and synchronizes three independent clients: an Electron control-room app, a Flutter responder app, and a standalone Unity simulation.
 
-The Electron app lives in `frontend/`, where the existing React interface is used as its renderer. The Flutter app lives in `responder-mobile/`. The Unity application is developed separately by its owner. See [the architecture and delivery plan](notes.md), [the backend API](docs/backend-api.md), and [the standalone Unity contract](docs/unity-events.md).
+The Electron app lives in `frontend/`, where the existing React interface is used as its renderer. The Flutter app lives in `responder-mobile/`. The Unity application is developed separately by its owner.
+
+Incident advice comes from the CAMARA orchestration agent in `ml/agent/` — a separate process, built on the OpenAI Agents SDK, that chooses which GSMA Open Gateway CAMARA APIs to consult and returns the calls it made with its recommendation. Only Laravel calls it, it has no dispatch tool, and an operator must still approve or override every dispatch.
+
+See [the architecture and delivery plan](notes.md), [the agent](ml/README.md), [the backend API](docs/backend-api.md), and [the standalone Unity contract](docs/unity-events.md).
 
 ## Local setup
 
@@ -36,6 +40,24 @@ php artisan schedule:work
 Demo API base URL: `http://localhost:8000/api/v1/demo`.
 
 The API base URL is a prefix, not a page. To check the API, open `http://localhost:8000/api/v1/demo/simulations`; the backend health endpoint is `http://localhost:8000/up`.
+
+Start the CAMARA orchestration agent in another terminal, from `ml/agent/`:
+
+```sh
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+AMAN_CAMARA_MODE=backend AMAN_AGENT_SERVICE_TOKEN=dev-token \
+AMAN_CAMARA_TOOL_TOKEN=dev-gateway-token OPENAI_API_KEY=… \
+.venv/bin/python service.py
+```
+
+Then set the matching `AMAN_AGENT_URL=http://127.0.0.1:8091`,
+`AMAN_AGENT_SERVICE_TOKEN` and `AMAN_CAMARA_GATEWAY_TOKEN` in `backend/.env` and
+run `php artisan config:clear`. The agent is optional locally: without
+`AMAN_AGENT_URL` the backend falls back to a single model call, so the console
+still shows a brief, just without the CAMARA tool trace. See
+[`ml/README.md`](ml/README.md) for fixture mode, which needs no backend and
+spends no API quota.
 
 Start the Electron control-room app in another terminal:
 

@@ -67,6 +67,11 @@ AMAN_CAMARA_TOOL_URL=http://127.0.0.1:8000/api/internal/agent/camara
 AMAN_CAMARA_TOOL_TOKEN=<private service token>
 ```
 
+This is what the deployed demo runs. `deploy/release.sh` writes these into
+`/var/www/aman/agent/agent.env` and points the tool URL at the loopback-only
+nginx listener on `127.0.0.1:8127`, because production Laravel is served by
+PHP-FPM and has no `:8000` of its own.
+
 The backend gateway receives one server-to-server POST per tool call:
 
 ```json
@@ -106,13 +111,29 @@ allowlist to `/v1/incidents/advise`. The exact input schema is in
 Use `requestId` as an idempotency key. Repeating the identical request replays the
 cached result; reusing the ID with a different body returns HTTP 409.
 
-Teammate work needed after their branches are ready is intentionally small:
+All three integration steps are done and verified end to end (2026-09-12):
 
-1. Laravel implements the private normalized CAMARA gateway above.
-2. Laravel replaces its direct single-model advice call with one call to this service.
-3. The operator UI renders `toolTrace`, `evidenceMode`, uncertainty, and the approval control.
+1. Laravel serves the normalized gateway at `POST /api/internal/agent/camara`
+   (`app/Services/Ai/CamaraEvidenceGateway.php`), bearer-token authenticated and
+   loopback-only in production.
+2. Laravel routes advice through this service via
+   `app/Services/Ai/AgentIncidentAdvisor.php`, bound whenever `AMAN_AGENT_URL` is
+   set. The old single-call advisor remains the fallback for a machine that is
+   not running this service.
+3. The operator console renders `toolTrace`, `evidenceMode`, uncertainty, and
+   the approval control, in English and Arabic.
 
-Unity and the responder app do not call this service or CAMARA directly.
+The gateway declares provenance per operation rather than `live_camara` for
+everything, because AMAN's venue genuinely runs mixed: Device Reachability is a
+live Nokia Network-as-Code call, while location verification and congestion come
+from the venue simulation. `BackendCamaraClient` keeps whatever the gateway
+declares and never upgrades it, and `_evidence_mode` still reports the whole run
+as `simulated_fixture` when any source is simulated.
+
+Unity and the responder app do not call this service or CAMARA directly. The
+responder app receives only `{urgency, networkCongested}` from the approved
+advice, so the agent's congestion finding changes how a responder in the field
+tries to reach the control room.
 
 ## Validation
 

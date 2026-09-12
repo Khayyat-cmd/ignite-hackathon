@@ -184,11 +184,23 @@ class BackendClientTests(unittest.TestCase):
         self.assertEqual(sent.headers["Authorization"], "Bearer secret")
         self.assertTrue(evidence.dataReachable)
 
-    def test_backend_mode_rejects_fixture_provenance(self) -> None:
+    def test_backend_mode_keeps_the_gateways_declared_provenance(self) -> None:
+        """The venue runs mixed evidence; simulated provenance must survive intact."""
         response = json.loads(
             (AGENT_ROOT / "examples" / "backend_camara_response.json").read_text(encoding="utf-8")
         )
         response["source"] = "simulated_fixture"
+        with patch("camara.urlopen", return_value=_FakeResponse(response)):
+            evidence = BackendCamaraClient("https://backend.example/tool", "secret").fetch(
+                CamaraOperation.DEVICE_REACHABILITY, load_request(), "responder-7"
+            )
+        self.assertEqual(evidence.source, "simulated_fixture")
+
+    def test_backend_mode_rejects_evidence_for_the_wrong_subject(self) -> None:
+        response = json.loads(
+            (AGENT_ROOT / "examples" / "backend_camara_response.json").read_text(encoding="utf-8")
+        )
+        response["responderId"] = "responder-9"
         with patch("camara.urlopen", return_value=_FakeResponse(response)):
             with self.assertRaises(CamaraToolError):
                 BackendCamaraClient("https://backend.example/tool", "secret").fetch(

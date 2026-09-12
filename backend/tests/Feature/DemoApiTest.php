@@ -22,7 +22,8 @@ class DemoApiTest extends TestCase
         parent::setUp();
         config(['aman.demo_enabled' => true, 'camara.mode' => 'disabled']);
         config(['aman.reachability.key' => 'test', 'aman.reachability.enabled' => true]);
-        config(['services.openai.key' => null]);
+        // No advisor of either kind: this file covers the demo API alone.
+        config(['services.openai.key' => null, 'aman.agent.url' => null]);
         Http::preventStrayRequests();
         Http::fake(fn ($request) => Http::response([
             'reachable' => $request['device']['phoneNumber'] !== '+99999991003',

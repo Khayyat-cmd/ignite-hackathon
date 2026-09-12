@@ -458,7 +458,48 @@ input:disabled, textarea:disabled { color: var(--text-3); }
 .evidence { list-style: none; display: grid; gap: 5px; padding: 0; }
 .evidence li { display: flex; gap: 8px; color: var(--text-2); font-size: var(--fs-sm); line-height: 1.5; }
 .evidence li::before { content: ""; flex: 0 0 auto; width: 3px; height: 3px; margin-top: 7px; border-radius: 50%; background: var(--text-3); }
+.brief-degraded { border-inline-start-color: var(--warn); }
 .brief-meta { color: var(--text-3); font-size: var(--fs-micro); font-family: var(--mono); line-height: 1.6; }
+.brief-runtime { display: block; font-style: normal; opacity: .8; }
+
+/* The agent's CAMARA calls. Kept collapsed: it is the audit trail behind the
+   brief, not the brief itself. LIVE is the only thing that earns a colour —
+   an operator must be able to tell live network evidence from the simulation. */
+.tooltrace > summary { display: flex; align-items: center; gap: var(--sp-2); }
+.trace-chip {
+  padding: 1px 6px;
+  border: 1px solid var(--line-2);
+  border-radius: 999px;
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  font-family: var(--mono);
+}
+.trace-chip.live { border-color: color-mix(in srgb, var(--ok) 45%, transparent); color: var(--ok); }
+.trace-list { list-style: none; display: grid; gap: 7px; margin: 0; padding: 0; counter-reset: trace; }
+.trace-list li {
+  display: grid;
+  gap: 2px;
+  padding: 7px 9px;
+  border-radius: var(--r-sm);
+  background: var(--panel-2);
+}
+.trace-head { display: flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-sm); }
+.trace-head b { flex: 1; font-weight: 600; }
+.trace-head::before {
+  counter-increment: trace;
+  content: counter(trace);
+  flex: 0 0 auto;
+  min-width: 15px;
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  font-family: var(--mono);
+  text-align: center;
+}
+.trace-source { color: var(--text-3); font-size: var(--fs-micro); font-family: var(--mono); letter-spacing: .06em; }
+.trace-source.live { color: var(--ok); }
+.trace-result { font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+.trace-reason { color: var(--text-3); font-size: var(--fs-sm); line-height: 1.45; }
+.trace-meta { color: var(--text-3); font-size: var(--fs-micro); font-family: var(--mono); opacity: .75; }
 
 details > summary { cursor: pointer; color: var(--text-3); font-size: var(--fs-sm); list-style: none; }
 details > summary::-webkit-details-marker { display: none; }
@@ -585,7 +626,7 @@ pre {
 
 /* Desktop feel: chrome is not selectable, content is. */
 body { user-select: none; }
-.brief-summary, .brief-action, .evidence, .bubble, .fact-tags, input, textarea, select { user-select: text; }
+.brief-summary, .brief-action, .evidence, .trace-list, .bubble, .fact-tags, input, textarea, select { user-select: text; }
 
 /* ---------- attention: decisions waiting on the operator ---------- */
 
@@ -722,5 +763,6 @@ body { user-select: none; }
 /* Latin monospace has no Arabic, and the substitute face it falls back to is
    neither tabular nor the same size. Text-only readouts drop to the UI face;
    figures (clock, sample time) keep their tabular alignment. */
-[lang="ar"] .zone-thresholds, [lang="ar"] .brief-meta { font-family: inherit; }
+[lang="ar"] .zone-thresholds, [lang="ar"] .brief-meta,
+[lang="ar"] .trace-chip, [lang="ar"] .trace-source { font-family: inherit; }
 [lang="ar"] .badge, [lang="ar"] .state-pill, [lang="ar"] .run-phase, [lang="ar"] .map-caption { text-transform: none; }

@@ -65,6 +65,7 @@ class MissionController extends Controller
                 'arrivalVerification' => data_get($incident->decision, 'arrivalVerification'),
                 'workStartedAt' => data_get($incident->decision, 'workStartedAt'),
                 'source' => $incident->source, 'approvedAt' => $incident->approved_at?->toISOString(),
+                'brief' => $this->fieldBrief($incident),
                 'destination' => ['zoneId' => $zone->id, 'name' => $zone->name,
                     'latitude' => $zone->latitude, 'longitude' => $zone->longitude,
                     'boundary' => $zone->boundary, 'simulated' => $zone->demo_key !== null],
@@ -81,5 +82,34 @@ class MissionController extends Controller
         $incident = $workflow->acknowledge($incident, $workspace->responderActor($responder)->id);
 
         return ['id' => $incident->id, 'status' => $incident->status->value];
+    }
+
+    /**
+     * The field-facing slice of the operator's approved brief: how urgent the
+     * zone is, and whether the agent's own Congestion Insights evidence says
+     * mobile data will be unreliable on arrival.
+     *
+     * The agent's prose is deliberately not forwarded. It is written for the
+     * operator deciding a dispatch ("Operator should review and approve…"),
+     * which reads wrong in the hands of the responder already assigned.
+     * Anything a responder should be told in words comes from the operator
+     * through the mission thread instead.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function fieldBrief(Incident $incident): ?array
+    {
+        $advice = data_get($incident->decision, 'advice');
+        if (! is_array($advice)) {
+            return null;
+        }
+        $congested = collect(data_get($advice, 'toolTrace', []))
+            ->contains(fn (mixed $entry): bool => data_get($entry, 'tool') === 'congestion_insights'
+                && data_get($entry, 'result.congestionLevel') === 'high');
+
+        return [
+            'urgency' => data_get($advice, 'urgency'),
+            'networkCongested' => $congested,
+        ];
     }
 }

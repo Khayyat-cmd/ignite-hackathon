@@ -18,7 +18,7 @@ class GenerateIncidentAdvice implements ShouldBeUnique, ShouldQueue
 
     public int $tries = 1;
 
-    public int $timeout = 25;
+    public int $timeout = 55;
 
     public int $uniqueFor = 300;
 

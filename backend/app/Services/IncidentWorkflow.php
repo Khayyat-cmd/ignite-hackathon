@@ -54,7 +54,7 @@ final class IncidentWorkflow
             $previousCandidateIds = collect(data_get($incident->decision, 'candidates', []))->pluck('responderId')->values()->all();
             $candidateIds = collect($candidates)->pluck('responderId')->values()->all();
             $sameCandidates = $previousCandidateIds === $candidateIds;
-            $adviceStatus = $selected && filled(config('services.openai.key'))
+            $adviceStatus = $selected && (filled(config('aman.agent.url')) || filled(config('services.openai.key')))
                 ? ($sameCandidates && in_array($previousAdviceStatus, ['pending', 'ready'], true) ? $previousAdviceStatus : 'pending')
                 : 'disabled';
             $decision = ['method' => 'deterministic_simulated_distance', 'source' => $incident->source, 'candidates' => $candidates, 'excluded' => $excluded, 'requiresRouteReview' => true, 'reason' => $selected ? 'nearest_eligible_reachable_responder' : 'no_eligible_responder', 'adviceStatus' => $adviceStatus];

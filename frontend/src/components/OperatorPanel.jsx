@@ -102,6 +102,54 @@ function DecisionFacts({ incident, responder }) {
   </div>;
 }
 
+// The CAMARA calls the agent chose to make, in the order it made them. This is
+// the part an operator can audit: which network API answered, what it said, and
+// whether the answer came off the live network or out of the venue simulation.
+function ToolTrace({ trace, evidenceMode }) {
+  const { t, n, time } = useI18n();
+  if (!trace?.length) return null;
+  const live = trace.filter((entry) => entry.source === 'live_camara').length;
+  return <details className="tooltrace">
+    <summary>
+      {t('trace.summary', { count: trace.length })}
+      <span className={evidenceMode === 'live_camara' ? 'trace-chip live' : 'trace-chip'}>
+        {evidenceMode === 'live_camara'
+          ? t('trace.allLive')
+          : t('trace.mixed', { live: n(live), total: n(trace.length) })}
+      </span>
+    </summary>
+    <ol className="trace-list">
+      {trace.map((entry) => <li key={`${entry.sequence}-${entry.tool}-${entry.responderId ?? 'zone'}`}>
+        <span className="trace-head">
+          <b>{t(`trace.tool.${entry.tool}`)}</b>
+          <span className={entry.source === 'live_camara' ? 'trace-source live' : 'trace-source'}>
+            {t(entry.source === 'live_camara' ? 'trace.live' : 'trace.simulated')}
+          </span>
+        </span>
+        <span className="trace-result" dir="auto">
+          {entry.status === 'unavailable' ? t('trace.unavailable') : traceResult(entry.result, t)}
+        </span>
+        <span className="trace-reason" dir="auto">{entry.reason}</span>
+        <span className="trace-meta" dir="ltr">{entry.api} · {time(entry.checkedAt)}</span>
+      </li>)}
+    </ol>
+  </details>;
+}
+
+// The agent returns whichever CAMARA fields the chosen API actually carries, so
+// the row is assembled from what is present rather than a fixed shape.
+function traceResult(result, t) {
+  if (!result) return '—';
+  const parts = [];
+  if (typeof result.dataReachable === 'boolean') {
+    parts.push(t(result.dataReachable ? 'trace.reachable' : 'trace.unreachable'));
+  }
+  if (result.verificationResult) parts.push(`${t('trace.location')}: ${result.verificationResult}`);
+  if (result.congestionLevel) parts.push(`${t('trace.congestion')}: ${result.congestionLevel.toUpperCase()}`);
+  if (result.accuracyMeters != null) parts.push(`±${result.accuracyMeters} m`);
+  return parts.length ? parts.join(' · ') : '—';
+}
+
 function Brief({ decision, busy, retry }) {
   const { t, term, time } = useI18n();
   const advice = decision?.advice;
@@ -125,20 +173,26 @@ function Brief({ decision, busy, retry }) {
       <p className="hint">{t('brief.offlineHint')}</p>
     </section>;
   }
-  return <section className="brief">
+  const degraded = advice.agentStatus === 'degraded';
+  return <section className={degraded ? 'brief brief-degraded' : 'brief'}>
     <div className="brief-head">
       <span className="label">{t('brief.label')}</span>
       <Badge value={advice.urgency} />
       <Badge value={advice.confidence} tone={advice.confidence} label={t('brief.confidence', { level: term(advice.confidence) })} />
+      {degraded && <Badge value="degraded" tone="unavailable" label={t('brief.degraded')} />}
     </div>
-    <p className="brief-summary">{advice.summary}</p>
-    <p className="brief-action"><span>{t('brief.proposedAction')}</span>{advice.proposedAction}</p>
-    <ul className="evidence">{advice.evidence.map((item) => <li key={item}>{item}</li>)}</ul>
+    <p className="brief-summary" dir="auto">{advice.summary}</p>
+    <p className="brief-action"><span>{t('brief.proposedAction')}</span><span dir="auto">{advice.proposedAction}</span></p>
+    <ul className="evidence">{advice.evidence.map((item) => <li key={item} dir="auto">{item}</li>)}</ul>
     {advice.uncertainties.length > 0 && <details>
       <summary>{t('brief.uncertainty')}</summary>
-      <ul className="evidence">{advice.uncertainties.map((item) => <li key={item}>{item}</li>)}</ul>
+      <ul className="evidence">{advice.uncertainties.map((item) => <li key={item} dir="auto">{item}</li>)}</ul>
     </details>}
-    <span className="brief-meta">{t('brief.meta', { time: time(advice.generatedAt) })}</span>
+    <ToolTrace trace={advice.toolTrace} evidenceMode={advice.evidenceMode} />
+    <span className="brief-meta">
+      {t('brief.meta', { time: time(advice.generatedAt) })}
+      {advice.agentRuntime && <em className="brief-runtime" dir="ltr">{advice.agentRuntime} v{advice.agentVersion}</em>}
+    </span>
   </section>;
 }
 

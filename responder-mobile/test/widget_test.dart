@@ -145,6 +145,56 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
+  testWidgets(
+    'carries the approved action and the network warning to the field',
+    (tester) async {
+      final gateway = MissionGateway(
+        mission: const Mission(
+          id: 'm1',
+          status: 'dispatched',
+          zoneName: 'East Entrance',
+          simulated: true,
+          brief: MissionBrief(urgency: 'critical', networkCongested: true),
+        ),
+      );
+      await pumpMission(tester, gateway);
+
+      expect(find.text('CONTROL ROOM BRIEF'), findsOneWidget);
+      expect(find.text('CRITICAL'), findsOneWidget);
+      expect(
+        find.textContaining('above the critical threshold'),
+        findsOneWidget,
+      );
+      // The agent's congestion evidence has to reach the responder as an action,
+      // not as a reading they would have to interpret.
+      expect(find.textContaining('Use radio'), findsOneWidget);
+      // The agent's own prose is written for the operator; it must not appear here.
+      expect(find.textContaining('Operator should'), findsNothing);
+
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets('stays quiet when the zone is calm and the network is healthy', (
+    tester,
+  ) async {
+    final gateway = MissionGateway(
+      mission: const Mission(
+        id: 'm1',
+        status: 'dispatched',
+        zoneName: 'East Entrance',
+        simulated: true,
+        brief: MissionBrief(urgency: 'medium', networkCongested: false),
+      ),
+    );
+    await pumpMission(tester, gateway);
+
+    expect(find.text('CONTROL ROOM BRIEF'), findsNothing);
+    expect(find.text('ACKNOWLEDGE ASSIGNMENT'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('labels thread senders and separates progress events', (
     tester,
   ) async {
