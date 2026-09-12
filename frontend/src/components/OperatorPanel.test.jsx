@@ -89,6 +89,64 @@ describe('Command center', () => {
     expect(html).toContain('Review before dispatch');
     expect(html).not.toContain('internal-model-name');
   });
+  it('tells the operator what the escalation did when a dispatch goes unacknowledged', () => {
+    const responders = [{ id: 'r1', name: 'Concourse Marshal', available: false, signals: {} }];
+    const reminded = {
+      id: 'i1', zone_id: 'east', active_zone_id: 'east', status: 'dispatched', responder_id: 'r1', assigned_responder_id: 'r1',
+      decision: { escalation: { outcome: 'reminder_sent', responderId: 'r1', handledAt: '2026-09-12T18:02:00Z' } },
+    };
+    const remindedHtml = renderToStaticMarkup(<OperatorPanel data={{ ...base, responders, incidents: [reminded] }} />);
+    expect(remindedHtml).toContain('No acknowledgement — reminder sent to Concourse Marshal.');
+
+    const dropped = {
+      id: 'i1', zone_id: 'east', active_zone_id: 'east', status: 'detected', responder_id: null,
+      decision: { escalation: { outcome: 'reassignment_requested', responderId: 'r1', reason: 'mobile_data_unreachable', handledAt: '2026-09-12T18:02:00Z' }, candidates: [], adviceStatus: 'pending' },
+    };
+    const droppedHtml = renderToStaticMarkup(<OperatorPanel data={{ ...base, responders, incidents: [dropped] }} />);
+    expect(droppedHtml).toContain('Concourse Marshal is unreachable — the AI is finding another responder.');
+    expect(droppedHtml).toContain('escalation-reassigned');
+
+    const stale = { ...dropped, decision: { ...dropped.decision, escalation: { ...dropped.decision.escalation, reason: 'reachability_unavailable_or_stale' } } };
+    const staleHtml = renderToStaticMarkup(<OperatorPanel data={{ ...base, responders, incidents: [stale] }} />);
+    expect(staleHtml).toContain('Reachability for Concourse Marshal is unknown');
+
+    const clean = renderToStaticMarkup(<OperatorPanel data={{ ...base, responders, incidents: [{ ...reminded, decision: {} }] }} />);
+    expect(clean).not.toContain('escalation');
+  });
+  it('orders the queue as a worklist and shows how long each incident has been open', () => {
+    const south = { ...zone, id: 'south', name: 'South Concourse', risk_level: 'normal' };
+    const closed = { id: 'i-old', zone_id: 'south', active_zone_id: null, status: 'resolved', created_at: '2026-09-12T18:05:00Z' };
+    const open = { id: 'i-new', zone_id: 'east', active_zone_id: 'east', status: 'awaiting_approval', responder_id: 'r1', created_at: '2026-09-12T18:00:00Z', decision: { candidates: [{ responderId: 'r1', distanceMeters: 42 }], adviceStatus: 'ready' } };
+    const html = renderToStaticMarkup(<OperatorPanel data={{
+      ...base, zones: [zone, south], observedAt: '2026-09-12T18:02:05Z',
+      responders: [{ id: 'r1', name: 'Concourse Marshal', available: true, signals: {} }],
+      // Newest first, the order the backend sends: the decision still has to come first.
+      incidents: [closed, open],
+    }} />);
+    expect(html.indexOf('East Entrance')).toBeLessThan(html.indexOf('South Concourse'));
+    expect(html).toContain('open 2:05');
+    expect(html).toContain('queue-clock');
+    expect(html).toContain('Closed · ');
+  });
+  it('says the agent is still working rather than claiming nobody is eligible', () => {
+    // While the advice job runs the backend holds back a selection, so the incident has
+    // ranked candidates and no responder_id. Calling that "no eligible responder"
+    // contradicted the brief's own analyzing badge on the same screen.
+    const incident = {
+      id: 'i1', zone_id: 'east', active_zone_id: 'east', status: 'detected', responder_id: null,
+      decision: { candidates: [{ responderId: 'r1', distanceMeters: 42 }], fallbackResponderId: 'r1', adviceStatus: 'pending' },
+    };
+    const data = { ...base, responders: [{ id: 'r1', name: 'Concourse Marshal', available: true, signals: {} }], incidents: [incident] };
+    const html = renderToStaticMarkup(<OperatorPanel data={data} />);
+    expect(html).toContain('Awaiting AI recommendation');
+    expect(html).toContain('The dispatch options open as soon as the AI answers.');
+    expect(html).not.toContain('No eligible responder');
+    expect(html).not.toContain('No responder is currently eligible');
+    const empty = { ...incident, decision: { candidates: [], adviceStatus: 'pending' } };
+    const nobody = renderToStaticMarkup(<OperatorPanel data={{ ...data, incidents: [empty] }} />);
+    expect(nobody).toContain('No responder is currently eligible');
+    expect(nobody).not.toContain('Awaiting AI recommendation');
+  });
   it('shows the CAMARA calls the agent made and which were live', () => {
     const advice = {
       summary: 'The nearest marshal is data reachable and inside the zone.', urgency: 'critical', confidence: 'medium',

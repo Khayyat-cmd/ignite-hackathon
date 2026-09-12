@@ -15,6 +15,23 @@ const BASE_TITLE = 'AMAN Command Center';
 const FRESH_MS = 12000;
 const DEFAULT_STABLE_SECONDS = 15;
 
+/**
+ * How long an incident has been open, as a control-room clock (m:ss, or h:mm:ss past
+ * the hour). Measured against the snapshot's own sample time when there is one, so the
+ * figure agrees with the rest of the screen instead of with the workstation's clock.
+ * Digits stay Latin in both languages, as every other reading in the console does.
+ */
+function elapsedClock(createdAt, observedAt) {
+  const now = observedAt ? Date.parse(observedAt) : Date.now();
+  const started = Date.parse(createdAt);
+  if (!Number.isFinite(now) || !Number.isFinite(started)) return '—';
+  const total = Math.max(0, Math.round((now - started) / 1000));
+  const seconds = String(total % 60).padStart(2, '0');
+  const minutes = Math.floor(total / 60) % 60;
+  const hours = Math.floor(total / 3600);
+  return hours > 0 ? `${hours}:${String(minutes).padStart(2, '0')}:${seconds}` : `${minutes}:${seconds}`;
+}
+
 function readMuted() {
   if (typeof window === 'undefined') return false;
   try { return window.localStorage.getItem(MUTE_KEY) === '1'; } catch { return false; }
@@ -196,6 +213,30 @@ function Brief({ decision, busy, retry }) {
   </section>;
 }
 
+/**
+ * What the unacknowledged-dispatch monitor did, in the operator's terms.
+ *
+ * The escalation runs server-side once a dispatch goes unacknowledged past the timeout:
+ * a reachable responder gets a push reminder, an unreachable one is dropped and the
+ * incident goes back for a fresh recommendation. Both outcomes used to be invisible
+ * here, so the console simply showed the incident sliding back to Detected with no
+ * explanation. The field stays until the operator approves the next dispatch.
+ */
+function Escalation({ escalation, responders }) {
+  const { t, time } = useI18n();
+  if (!escalation?.outcome) return null;
+  const name = responders.find((item) => item.id === escalation.responderId)?.name;
+  const reminder = escalation.outcome === 'reminder_sent';
+  const key = reminder
+    ? 'escalation.reminder'
+    : escalation.reason === 'mobile_data_unreachable' ? 'escalation.unreachable' : 'escalation.unknownReach';
+  return <p className={reminder ? 'escalation' : 'escalation escalation-reassigned'}>
+    <i className={`dot ${reminder ? 'warning' : 'critical'}`} />
+    <span dir="auto">{t(key, { name: name || t('escalation.theResponder') })}</span>
+    {escalation.handledAt && <span className="escalation-time">{time(escalation.handledAt)}</span>}
+  </p>;
+}
+
 function IncidentDetail({ incident, refresh, responders, zones, stale, stopped, proposedResponderId }) {
   const { t, n } = useI18n();
   const [reviewed, setReviewed] = useState(false);
@@ -213,6 +254,11 @@ function IncidentDetail({ incident, refresh, responders, zones, stale, stopped, 
   const zone = zones.find((item) => item.id === incident.zone_id);
   const resolution = zone?.resolution;
   const active = Boolean(incident.active_zone_id) && !stopped;
+  // The backend withholds a selection while the agent is still running, so the incident
+  // carries ranked candidates but no responder_id. That is not the same as having nobody
+  // eligible, and saying so contradicts the brief's own "analyzing" badge two rows above.
+  const awaitingAdvice = incident.decision?.adviceStatus === 'pending'
+    && (incident.decision?.candidates || []).length > 0;
   const dispatched = ['dispatched', 'acknowledged'].includes(incident.status);
   const arrived = !stale && incident.decision?.arrivalVerification?.verificationResult === 'TRUE';
   const requiredStable = resolution?.requiredStableSeconds || DEFAULT_STABLE_SECONDS;
@@ -226,11 +272,13 @@ function IncidentDetail({ incident, refresh, responders, zones, stale, stopped, 
       <Badge value={incident.status} />
     </div>
 
+    {incident.status !== 'resolved' && <Escalation escalation={incident.decision?.escalation} responders={responders} />}
+
     <Brief decision={incident.decision} busy={action.busy} retry={() => mutate('advice')} />
 
     <div className="block">
       <span className="label">{t('assignment.label')}</span>
-      <div className="row"><span>{t('assignment.responder')}</span><b>{selected?.name || t('assignment.none')}</b></div>
+      <div className="row"><span>{t('assignment.responder')}</span><b>{selected?.name || t(awaitingAdvice ? 'assignment.awaitingAdvice' : 'assignment.none')}</b></div>
       {dispatched && <p className="arrival-status">
         <i className={`dot ${incident.status === 'dispatched' ? 'warning' : arrived ? 'normal' : ''}`} />
         {incident.status === 'dispatched' ? t('arrival.waiting') : arrived ? t('arrival.arrived') : t('arrival.tracking')}
@@ -267,7 +315,7 @@ function IncidentDetail({ incident, refresh, responders, zones, stale, stopped, 
           disabled={action.busy || !reviewed || stale || !selectedResponderId}
           onClick={() => mutate('approve', { routeReviewed: true, responderId: selectedResponderId })}
         >{selectedResponderId === advisedResponderId ? t('approval.dispatchRecommended') : t('approval.dispatchSelected')}</button>
-      </> : <p className="hint">{t('approval.noneEligible')}</p>}
+      </> : <p className="hint">{t(awaitingAdvice ? 'approval.awaitingAdvice' : 'approval.noneEligible')}</p>}
       <button type="button" className="btn btn-quiet" disabled={action.busy || stale} onClick={() => mutate('recommend')}>{t('approval.refresh')}</button>
     </div>}
 
@@ -300,7 +348,7 @@ function AttentionBar({ items, zoneName, muted, onReview, onToggleMute }) {
 }
 
 export default function OperatorPanel({ data, refresh }) {
-  const { t, n, time } = useI18n();
+  const { t, n, time, term } = useI18n();
   const [selectedId, setSelectedId] = useState('');
   const [filterZoneId, setFilterZoneId] = useState(null);
   const [pinnedResponderId, setPinnedResponderId] = useState(null);
@@ -318,6 +366,14 @@ export default function OperatorPanel({ data, refresh }) {
   const awaiting = awaitingIncidents.length;
   const filterZone = data.zones.find((z) => z.id === filterZoneId);
   const visibleIncidents = filterZone ? incidents.filter((i) => i.zone_id === filterZoneId) : incidents;
+  // The backend orders by recency, which buries an incident waiting for approval under
+  // resolved ones. The queue is a worklist, so it reads in the order an operator acts:
+  // decisions first, then responses under way, then everything already closed.
+  const queueRank = (incident) => {
+    if (!incident.active_zone_id || incident.status === 'resolved') return 2;
+    return ['dispatched', 'acknowledged'].includes(incident.status) ? 1 : 0;
+  };
+  const queueRows = [...visibleIncidents].sort((a, b) => queueRank(a) - queueRank(b));
   const focused = visibleIncidents.find((i) => i.id === selectedId) || visibleIncidents.find((i) => i.active_zone_id) || visibleIncidents[0];
   const availableResponders = data.responders.filter((r) => r.available).length;
   const uncertain = (quality.ambiguous || 0) + (quality.stale || 0) + (quality.missing || 0);
@@ -535,9 +591,10 @@ export default function OperatorPanel({ data, refresh }) {
             <span className="meta">{t('queue.meta', { count: n(awaiting) })}</span>
           </div>
           {filterZone && <button type="button" className="filter-chip" onClick={() => selectZone(filterZone.id)}>{t('queue.filter', { zone: filterZone.name })}</button>}
-          {visibleIncidents.length > 0 && <div className="queue">
-            {visibleIncidents.map((incident) => {
+          {queueRows.length > 0 && <div className="queue">
+            {queueRows.map((incident) => {
               const zone = data.zones.find((z) => z.id === incident.zone_id);
+              const open = Boolean(incident.active_zone_id) && incident.status !== 'resolved';
               return <button
                 type="button"
                 key={incident.id}
@@ -547,7 +604,15 @@ export default function OperatorPanel({ data, refresh }) {
               >
                 <strong>{zoneName(incident.zone_id)}</strong>
                 <Badge value={incident.status} />
-                <span className="queue-meta">{incident.active_zone_id ? t('queue.active') : t('queue.closed')}{incident.created_at ? ` · ${time(incident.created_at)}` : ''}</span>
+                <span className="queue-meta">
+                  {open ? term(zone?.risk_level) : t('queue.closed')}
+                  {incident.created_at && <>
+                    {' · '}
+                    {open
+                      ? <span className="queue-clock">{t('queue.waiting', { clock: elapsedClock(incident.created_at, data.observedAt) })}</span>
+                      : time(incident.created_at)}
+                  </>}
+                </span>
               </button>;
             })}
           </div>}
