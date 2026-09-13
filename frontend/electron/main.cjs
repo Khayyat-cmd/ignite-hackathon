@@ -1,7 +1,11 @@
 const { app, BrowserWindow, shell } = require('electron');
 const path = require('node:path');
 
-const rendererUrl = 'http://localhost:3000';
+// A packaged app loads the deployed console rather than a bundled copy: a file://
+// page sends Origin: null, which the API's CORS allowlist rejects, and loading the
+// site keeps the desktop app on whatever console was last deployed.
+const consoleUrl = 'https://aman.baraaelbaba.com/';
+const rendererUrl = app.isPackaged ? consoleUrl : 'http://localhost:3000';
 
 function createWindow() {
   const window = new BrowserWindow({
@@ -25,12 +29,10 @@ function createWindow() {
     return { action: 'deny' };
   });
   window.webContents.on('will-navigate', (event, url) => {
-    const allowed = app.isPackaged ? url.startsWith('file:') : url.startsWith(rendererUrl);
-    if (!allowed) event.preventDefault();
+    if (!url.startsWith(rendererUrl)) event.preventDefault();
   });
 
-  if (app.isPackaged) window.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
-  else window.loadURL(rendererUrl);
+  window.loadURL(rendererUrl);
 }
 
 app.whenReady().then(() => {

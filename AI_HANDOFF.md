@@ -74,7 +74,8 @@ The user's real `OPENAI_API_KEY` is in `backend/.env`. A minimal live request re
 - Explicit operator responder selection and approval. The old React responder panel was removed.
 - English and Arabic, chosen from a switch in the top bar and persisted in `localStorage`. Selecting Arabic sets `dir="rtl"` and `lang="ar"` on the document; the layout follows through CSS logical properties, and Arabic drops the letter-spacing that would break letter joining.
 - Selecting a zone or an incident publishes the operator's focus to the backend, and the standalone Unity screen follows it by polling its own snapshot. The venue pane names what the second screen is framing. The contract, including the camera target in simulation metres and the `sequence` Unity uses to ignore late snapshots, is in `docs/unity-events.md`.
-- Linux AppImage packaging through `npm run build:desktop`.
+- Linux AppImage packaging through `npm run build:desktop`, and a Windows portable `.exe` through `npm run build:desktop:win` (needs wine on Linux). A packaged app loads the deployed console at `https://aman.baraaelbaba.com/` instead of a bundled copy: a `file://` page sends `Origin: null`, which the production CORS allowlist rejects. Deploy the console first and the desktop app picks it up without a rebuild.
+- GitHub releases carry the Windows desktop `.exe`, the responder APK, and the Unity owner's Windows build, all pointed at the deployed domain.
 
 ### Flutter responder app
 
