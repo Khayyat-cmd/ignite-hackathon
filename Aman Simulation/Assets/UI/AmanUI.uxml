@@ -1,0 +1,95 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements"
+         editor-extension-mode="False">
+
+    <ui:Style src="AmanUI.uss" />
+
+    <!-- Root wrapper: fills the screen, ignores picks so clicks reach the 3D scene -->
+    <ui:VisualElement name="aman-ui-root" class="aman-root" picking-mode="Ignore">
+
+        <!-- ── Top Bar ─────────────────────────────────────────── -->
+        <ui:VisualElement name="top-bar" class="top-bar">
+
+            <!-- Subtle bottom border line -->
+            <ui:VisualElement class="top-bar__border" picking-mode="Ignore" />
+
+            <!-- Left: Brand + Breadcrumb -->
+            <ui:VisualElement class="top-bar__left-group" picking-mode="Ignore">
+                <ui:Label text="AMAN &lt;color=#38bdf8&gt;TWIN&lt;/color&gt;"
+                          enable-rich-text="true"
+                          class="top-bar__brand"
+                          picking-mode="Ignore" />
+                <ui:Label name="subtitle-label"
+                          text="VENUE CONTROL / OVERVIEW"
+                          class="top-bar__subtitle"
+                          picking-mode="Ignore" />
+            </ui:VisualElement>
+
+            <!-- Center: Zone Badge with status dot -->
+            <ui:VisualElement class="top-bar__center-group" picking-mode="Ignore">
+                <ui:VisualElement class="top-bar__zone-badge">
+                    <ui:VisualElement name="status-dot"
+                                      class="top-bar__status-dot"
+                                      picking-mode="Ignore" />
+                    <ui:Label name="zone-label"
+                              text="OVERVIEW"
+                              class="top-bar__zone-label"
+                              picking-mode="Ignore" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+
+            <!-- Right: Home / Reset button -->
+            <ui:VisualElement class="top-bar__right-group" picking-mode="Ignore">
+                <ui:Button name="language-button"
+                           text="العربية"
+                           class="top-bar__language-button" />
+                <ui:Button name="home-button"
+                           text="RESET OVERVIEW [H]"
+                           class="top-bar__home-button" />
+            </ui:VisualElement>
+
+        </ui:VisualElement>
+
+        <!-- ── Zone Navigation Panel ───────────────────────────── -->
+        <ui:VisualElement class="zone-nav__panel">
+
+            <ui:Label name="zone-nav-header" text="VENUE ZONES"
+                      class="zone-nav__header"
+                      picking-mode="Ignore" />
+
+            <!-- Zone buttons are injected here at runtime by ZoneNavigationUI -->
+            <ui:VisualElement name="zone-buttons-container"
+                              class="zone-nav__buttons-container" />
+
+        </ui:VisualElement>
+
+        <!-- ── Selection Detail Card (hidden until an entity is selected) ── -->
+        <ui:VisualElement name="selection-card"
+                          class="selection-card"
+                          style="display: none;">
+
+            <ui:Label name="selection-card-title" text="Entity Details"
+                      class="selection-card__title"
+                      picking-mode="Ignore" />
+
+            <!-- Detail rows are injected here at runtime by SelectionManager -->
+            <ui:VisualElement name="selection-card-details"
+                              class="selection-card__details"
+                              picking-mode="Ignore" />
+
+        </ui:VisualElement>
+
+        <ui:VisualElement name="incident-action-bar" class="incident-action-bar" style="display: none;">
+            <ui:VisualElement class="incident-action-bar__copy">
+                <ui:Label name="incident-title" text="INCIDENT" class="incident-action-bar__title" />
+                <ui:Label name="incident-detail" class="incident-action-bar__detail" />
+                <ui:Label name="incident-feedback" class="incident-action-bar__feedback" />
+            </ui:VisualElement>
+            <ui:Button name="view-incident-zone" text="VIEW ZONE" class="incident-action-bar__view-button" />
+            <ui:DropdownField name="responder-choice" label="Responder" class="incident-action-bar__responder" />
+            <ui:Toggle name="route-reviewed" label="Route reviewed" class="incident-action-bar__review" />
+            <ui:Button name="incident-primary-action" text="APPROVE DISPATCH" class="incident-action-bar__button" />
+        </ui:VisualElement>
+
+    </ui:VisualElement>
+
+</ui:UXML>

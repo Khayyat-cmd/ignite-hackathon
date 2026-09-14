@@ -1,0 +1,303 @@
+/* ===================================================================
+   AMAN Control Room — Dark Theme (UI Toolkit)
+   =================================================================== */
+
+/* ── Root wrapper ──────────────────────────────────────────────────── */
+
+.aman-root {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    -unity-text-generator: advanced;
+}
+
+.incident-action-bar {
+    position: absolute;
+    left: 50%;
+    bottom: 24px;
+    translate: -50% 0;
+    min-width: 620px;
+    min-height: 78px;
+    padding: 14px 16px;
+    flex-direction: row;
+    align-items: center;
+    background-color: rgba(8, 18, 30, 0.96);
+    border-width: 1px;
+    border-color: rgba(251, 146, 60, 0.8);
+    border-radius: 8px;
+}
+
+.incident-action-bar__copy { flex-grow: 1; }
+.incident-action-bar__title { color: rgb(251, 146, 60); font-size: 14px; -unity-font-style: bold; }
+.incident-action-bar__detail { color: rgb(226, 232, 240); font-size: 12px; margin-top: 4px; }
+.incident-action-bar__feedback { color: rgb(125, 211, 252); font-size: 11px; margin-top: 3px; }
+.incident-action-bar__review { color: rgb(203, 213, 225); margin-right: 14px; }
+.incident-action-bar__responder { width: 220px; margin-right: 10px; color: rgb(226, 232, 240); }
+.incident-action-bar__responder .unity-base-field__label { color: rgb(148, 163, 184); min-width: 66px; }
+.incident-action-bar__responder .unity-base-popup-field__input { background-color: rgba(30, 41, 59, 0.95); border-color: rgba(71, 85, 105, 0.8); }
+.incident-action-bar__view-button { height: 38px; margin-right: 10px; padding-left: 14px; padding-right: 14px; color: rgb(125, 211, 252); background-color: rgba(14, 116, 144, 0.35); border-color: rgba(56, 189, 248, 0.7); border-width: 1px; border-radius: 5px; -unity-font-style: bold; }
+.incident-action-bar__button { height: 38px; padding-left: 18px; padding-right: 18px; color: white; background-color: rgb(194, 65, 12); border-radius: 5px; -unity-font-style: bold; }
+.incident-action-bar--offline { opacity: 0.65; }
+
+/* ── Top Bar ───────────────────────────────────────────────────────── */
+
+.top-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 54px;
+    flex-direction: row;
+    align-items: center;
+    background-color: rgba(15, 20, 31, 0.92);
+}
+
+.top-bar__border {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background-color: rgba(46, 61, 89, 0.6);
+}
+
+.top-bar__left-group {
+    flex-direction: row;
+    align-items: center;
+    margin-left: 24px;
+    min-width: 420px;
+}
+
+.top-bar__brand {
+    color: white;
+    font-size: 18px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-left;
+    width: 180px;
+}
+
+.top-bar__subtitle {
+    color: rgba(128, 153, 184, 0.9);
+    font-size: 11px;
+    -unity-text-align: middle-left;
+    width: 220px;
+}
+
+.top-bar__center-group {
+    flex-grow: 1;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+}
+
+.top-bar__zone-badge {
+    flex-direction: row;
+    align-items: center;
+    background-color: rgba(31, 41, 61, 0.85);
+    border-radius: 4px;
+    padding: 0 12px;
+    height: 34px;
+    min-width: 200px;
+}
+
+.top-bar__status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 4px;
+    background-color: rgba(51, 179, 255, 1.0);
+    margin-right: 10px;
+    flex-shrink: 0;
+}
+
+.top-bar__zone-label {
+    color: white;
+    font-size: 14px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-left;
+}
+
+.top-bar__right-group {
+    flex-direction: row;
+    justify-content: flex-end;
+    align-items: center;
+    margin-right: 24px;
+    min-width: 280px;
+}
+
+.top-bar__language-button {
+    background-color: rgba(14, 116, 144, 0.32);
+    border-width: 1px;
+    border-color: rgba(56, 189, 248, 0.65);
+    border-radius: 4px;
+    color: rgb(125, 211, 252);
+    font-size: 11px;
+    -unity-font-style: bold;
+    padding: 6px 14px;
+    height: 32px;
+    margin-right: 8px;
+}
+
+.top-bar__language-button:hover { background-color: rgba(14, 116, 144, 0.5); }
+
+.top-bar__home-button {
+    background-color: rgba(46, 61, 89, 0.8);
+    border-width: 0;
+    border-radius: 4px;
+    color: white;
+    font-size: 11px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+    padding: 6px 16px;
+    height: 32px;
+}
+
+.top-bar__home-button:hover {
+    background-color: rgba(56, 71, 97, 0.9);
+}
+
+.top-bar__home-button:active {
+    background-color: rgba(46, 115, 230, 0.95);
+}
+
+.aman-root--rtl .top-bar__subtitle,
+.aman-root--rtl .top-bar__zone-label,
+.aman-root--rtl .zone-nav__header,
+.aman-root--rtl .zone-nav__button-label,
+.aman-root--rtl .zone-nav__button-stats,
+.aman-root--rtl .selection-card__title,
+.aman-root--rtl .selection-card__row,
+.aman-root--rtl .incident-action-bar__copy {
+    -unity-text-align: middle-right;
+}
+
+/* ── Zone Navigation Panel ─────────────────────────────────────────── */
+
+.zone-nav__panel {
+    position: absolute;
+    left: 20px;
+    top: 70px;
+    width: 230px;
+    background-color: rgba(15, 20, 31, 0.85);
+    border-radius: 6px;
+    padding: 12px 10px 10px 10px;
+}
+
+.zone-nav__header {
+    color: rgba(115, 140, 173, 1.0);
+    font-size: 11px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-left;
+    margin-bottom: 8px;
+    padding-left: 4px;
+}
+
+.zone-nav__buttons-container {
+    flex-direction: column;
+}
+
+/* Zone buttons are VisualElements (not Button) to avoid internal-label conflicts */
+.zone-nav__button {
+    flex-direction: row;
+    align-items: center;
+    background-color: rgba(31, 38, 51, 0.85);
+    border-radius: 4px;
+    height: 48px;
+    margin-bottom: 6px;
+    padding: 0 10px;
+    transition: background-color 0.12s;
+}
+
+.zone-nav__button-copy {
+    flex-direction: column;
+    justify-content: center;
+    flex-grow: 1;
+}
+
+.zone-nav__button:hover {
+    background-color: rgba(56, 71, 97, 0.9);
+}
+
+.zone-nav__button:active {
+    background-color: rgba(46, 115, 230, 0.95);
+}
+
+.zone-nav__button--active {
+    background-color: rgba(46, 115, 230, 0.95);
+}
+
+.zone-nav__button--active:hover {
+    background-color: rgba(56, 125, 240, 1.0);
+}
+
+.zone-nav__button-index {
+    color: rgba(102, 166, 255, 0.9);
+    font-size: 12px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-left;
+    width: 28px;
+    flex-shrink: 0;
+}
+
+.zone-nav__button--active .zone-nav__button-index {
+    color: white;
+}
+
+.zone-nav__button-label {
+    color: rgba(217, 230, 242, 1.0);
+    font-size: 13px;
+    -unity-font-style: normal;
+    -unity-text-align: middle-left;
+    flex-grow: 1;
+}
+
+.zone-nav__button-stats {
+    color: rgba(125, 145, 170, 0.95);
+    font-size: 9px;
+    margin-top: 2px;
+}
+
+.zone-nav__button--warning { border-left-width: 3px; border-left-color: rgb(245, 158, 11); }
+.zone-nav__button--critical { border-left-width: 3px; border-left-color: rgb(239, 68, 68); }
+.zone-nav__button--active .zone-nav__button-stats { color: rgba(219, 234, 254, 0.95); }
+
+.zone-nav__button--active .zone-nav__button-label {
+    color: white;
+    -unity-font-style: bold;
+}
+
+/* ── Selection Detail Card ─────────────────────────────────────────── */
+
+.selection-card {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    width: 260px;
+    background-color: rgba(15, 20, 31, 0.92);
+    border-radius: 6px;
+    border-width: 1px;
+    border-color: rgba(46, 61, 89, 0.5);
+    padding: 14px;
+}
+
+.selection-card__title {
+    color: white;
+    font-size: 13px;
+    -unity-font-style: bold;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom-width: 1px;
+    border-bottom-color: rgba(46, 61, 89, 0.4);
+}
+
+.selection-card__details {
+    flex-direction: column;
+}
+
+.selection-card__row {
+    color: rgba(200, 210, 225, 0.9);
+    font-size: 12px;
+    margin-bottom: 4px;
+    -unity-text-align: middle-left;
+}
